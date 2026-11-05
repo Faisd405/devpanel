@@ -1,0 +1,18 @@
+# Build output
+/dist/
+*.exe
+*.exe~
+*.exe.old
+
+# Local, per-machine state: never commit
+devpanel.json
+devpanel-before-import-*.json
+agent.json
+path-backup-*.txt
+hosts-backup-*.txt
+
+# Scratch files
+_*.py
+_*.ps1
+_*.js
+real_test.go

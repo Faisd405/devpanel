@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DevPanel</title>
+<style>
+  :root { color-scheme: dark; --bg:#14161a; --card:#1c1f25; --card2:#22262d; --line:#2b2f37; --fg:#e7e9ec; --mut:#8a909b; --ok:#3ecf8e; --off:#555b66; --acc:#4f8cff; --err:#ff6b6b; --warn:#f5b84b; --pre:#0f1114; --pref:#cfd3da; --sel:#24324a; }
+  :root[data-theme=light] { color-scheme: light; --bg:#f4f5f7; --card:#ffffff; --card2:#eef0f3; --line:#dfe2e7; --fg:#1d2128; --mut:#646b77; --ok:#16a34a; --off:#b5bac3; --acc:#2563eb; --err:#dc2626; --warn:#b45309; --pre:#f7f8fa; --pref:#2a2f38; --sel:#dbe6ff; }
+  * { box-sizing: border-box; }
+  html, body { height:100%; }
+  body { margin:0; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font:14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px 0; }
+  header b { font-size:15px; letter-spacing:.02em; }
+  header .mut { margin-left:auto; }
+  nav { display:flex; gap:2px; padding:6px 20px 0; border-bottom:1px solid var(--line); }
+  nav button { background:none; border:0; border-bottom:2px solid transparent; border-radius:0; padding:8px 14px; color:var(--mut); }
+  nav button.active { color:var(--fg); border-bottom-color:var(--acc); }
+  nav button:hover { color:var(--fg); }
+  main { flex:1; overflow:auto; padding:16px 20px; }
+  .tab { display:none; }
+  .tab.active { display:block; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  h3 { margin:0 0 10px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
+  .row { display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid var(--line); }
+  .row:first-child { border-top:0; }
+  .grow { flex:1; min-width:0; }
+  .ellipsis { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--off); flex:none; }
+  .dot.on { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  .mut { color:var(--mut); font-size:12px; }
+  .err { color:var(--err); }
+  .w-label { width:110px; flex:none; }
+  .folder { width:220px; flex:none; }
+  button, select, input[type=text] { background:var(--card2); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:5px 12px; font:inherit; }
+  input[type=text], select { min-width:0; }
+  input[type=text]:focus, select:focus { outline:none; border-color:var(--acc); }
+  button { cursor:pointer; white-space:nowrap; }
+  button:hover:not(:disabled) { border-color:var(--acc); }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; }
+  button.ghost { background:none; border-color:transparent; color:var(--mut); padding:5px 8px; }
+  button.ghost:hover:not(:disabled) { color:var(--err); border-color:transparent; }
+  button:disabled { opacity:.45; cursor:default; }
+  label { margin-right:10px; white-space:nowrap; }
+  .inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .badge { font-size:11px; padding:1px 8px; border-radius:99px; background:var(--card2); border:1px solid var(--line); color:var(--mut); white-space:nowrap; }
+  .badge.ok { color:var(--ok); border-color:#2b5a45; background:#18291f; }
+  .badge.src { max-width:200px; overflow:hidden; text-overflow:ellipsis; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { padding:3px 12px; border-radius:99px; font-size:12px; }
+  .chip.active { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .cat { display:flex; align-items:center; gap:6px; margin:10px 2px 2px; padding:4px 6px; font-size:11px; font-weight:600;
+         text-transform:uppercase; letter-spacing:.08em; color:var(--mut); cursor:pointer; user-select:none; border-radius:5px; }
+  .cat:first-child { margin-top:0; }
+  .cat:hover { background:var(--card2); color:var(--fg); }
+  .cat .n { margin-left:auto; font-weight:400; letter-spacing:0; }
+  .split { display:flex; gap:14px; align-items:flex-start; }
+  .split .list { width:270px; flex:none; padding:6px; }
+  .split .list .row { padding:7px 8px; border-radius:6px; border-top:0; cursor:pointer; }
+  .split .list .row:hover { background:var(--card2); }
+  .split .list .row.sel { background:var(--sel); }
+  #detail { flex:1; min-width:0; }
+  .kv { display:grid; grid-template-columns:90px 1fr; gap:4px 12px; font-size:13px; }
+  .kv .mut { font-size:13px; }
+  .kv span:nth-child(2n) { overflow-wrap:anywhere; }
+  pre.out { background:var(--pre); border:1px solid var(--line); border-radius:6px; padding:10px; margin:10px 0 0; max-height:260px; overflow:auto; font:12px/1.45 Consolas, monospace; white-space:pre-wrap; color:var(--pref); }
+  .exts { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:4px 10px; }
+  .exts label { font-size:13px; margin:0; }
+  .url { font:11px Consolas, monospace; color:var(--mut); user-select:text; }
+  progress { width:110px; height:6px; accent-color:var(--acc); }
+  .grid { display:grid; gap:10px; grid-template-columns: 1.2fr 2fr 1fr auto; align-items:center; }
+  details summary { cursor:pointer; color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
+  details[open] summary { margin-bottom:10px; }
+  .empty { color:var(--mut); padding:10px 0; text-align:center; }
+  footer { border-top:1px solid var(--line); padding:6px 20px; }
+  #log { font:12px Consolas, monospace; white-space:pre-wrap; height:76px; overflow:auto; color:var(--mut); }
+</style>
+</head>
+<body>
+  <header><b>DevPanel</b><span class="mut" id="ver"></span><span class="mut" id="summary"></span></header>
+  <nav id="tabs">
+    <button data-tab="services" class="active">Services</button>
+    <button data-tab="groups">Groups</button>
+    <button data-tab="env">Environment</button>
+    <button data-tab="sites">Sites</button>
+    <button data-tab="db">Databases</button>
+    <button data-tab="procs">Processes</button>
+    <button data-tab="install">Install</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+
+  <main>
+    <!-- Services -->
+    <div class="tab active" id="tab-services">
+      <section>
+        <div class="inline">
+          <button class="primary" onclick="act('Start all', () => api().StartAll())">▶ Start All</button>
+          <button onclick="act('Stop all', () => api().StopAll())">■ Stop All</button>
+          <span class="mut grow">Start All runs every service ticked in Manage services.</span>
+          <button onclick="toggleManage()">⚙ Manage services</button>
+        </div>
+        <div id="manage" hidden style="margin-top:12px">
+          <div class="mut" style="margin-bottom:6px">Tick the services you use. Only those are shown, offered in groups and started by Start All. Missing ones install in place (newest version).</div>
+          <div id="manage-list"></div>
+        </div>
+      </section>
+      <div class="split">
+        <section class="list"><div id="services"></div></section>
+        <div id="detail"></div>
+      </div>
+    </div>
+
+    <!-- Groups -->
+    <div class="tab" id="tab-groups">
+      <section><h3>Groups</h3><div id="groups"></div></section>
+      <section>
+        <h3>New group</h3>
+        <div class="inline">
+          <input type="text" id="gname" placeholder="Group name">
+          <span id="gsvcs"></span>
+          <button onclick="saveGroup()">Save group</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Environment -->
+    <div class="tab" id="tab-env">
+      <section>
+        <h3>Selected versions</h3>
+        <div id="env"></div>
+      </section>
+      <section>
+        <h3>Tools</h3>
+        <div id="tools"></div>
+      </section>
+      <section>
+        <div class="inline">
+          <button class="primary" onclick="act('Open terminal', () => api().OpenTerminal())">Open terminal</button>
+          <button onclick="applyPath()">Apply to Windows PATH</button>
+          <span class="mut">Terminal uses the selected versions. Applying to PATH swaps the C:\laragon\bin entries in your user PATH (backup saved).</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Sites -->
+    <div class="tab" id="tab-sites">
+      <section>
+        <h3>Naming rules</h3>
+        <div class="mut" style="margin-bottom:8px">Default hostname = folder name with the first matching prefix and suffix rule applied, plus .test. Example: prefix <code>app_</code> → empty makes app_webshop → webshop.test.</div>
+        <div id="rules"></div>
+        <div class="inline" style="margin-top:8px">
+          <button onclick="addRule()">+ Add rule</button>
+          <button class="primary" onclick="saveRules()">Save rules</button>
+        </div>
+      </section>
+      <section>
+        <div class="inline">
+          <button class="primary" onclick="sync()">Sync vhosts</button>
+          <span class="mut">Writes Apache vhosts and adds missing hosts entries (asks for admin). Run after renaming.</span>
+          <input type="text" id="filter" placeholder="Filter…" style="margin-left:auto;width:180px" oninput="renderSites()">
+        </div>
+      </section>
+      <div id="sites-error" class="err" style="margin-bottom:10px"></div>
+      <section id="hosts-banner" hidden style="border-color:#5a4a20;background:#2a2416">
+        <div class="inline"><span class="grow"></span><button class="primary" onclick="sync()">Add to hosts (admin)</button></div>
+      </section>
+      <section>
+        <details id="qa">
+          <summary>Quick App · new project</summary>
+          <div class="inline">
+            <select id="qa-kind" onchange="qaKindChanged()">
+              <option value="laravel">Laravel</option><option value="wordpress">WordPress</option><option value="symfony">Symfony</option>
+              <option value="codeigniter">CodeIgniter 4</option><option value="cakephp">CakePHP</option><option value="drupal">Drupal</option>
+              <option value="blank">Blank PHP</option></select>
+            <input type="text" id="qa-name" placeholder="folder name, e.g. my-shop" style="width:220px">
+            <select id="qa-db"><option value="pgsql">PostgreSQL database</option><option value="mysql">MySQL database</option><option value="sqlite">SQLite (no server)</option></select>
+            <button class="primary" onclick="createApp()">Create</button>
+          </div>
+          <div class="mut" style="margin-top:6px" id="qa-hint"></div>
+          <pre class="out" id="qa-log" hidden></pre>
+        </details>
+      </section>
+      <section><div id="sites"></div></section>
+    </div>
+
+    <!-- Databases -->
+    <div class="tab" id="tab-db">
+      <section>
+        <div class="inline">
+          <select id="db-engine" onchange="loadDBs()"><option value="postgresql">PostgreSQL</option><option value="mysql">MySQL</option></select>
+          <input type="text" id="db-new" placeholder="new_database" style="width:200px">
+          <button class="primary" onclick="createDB()">Create</button>
+          <button style="margin-left:auto" onclick="api().OpenBackupFolder($('db-engine').value)">📁 Backups</button>
+          <button onclick="loadDBs()">↻</button>
+        </div>
+        <div class="mut" style="margin-top:8px">Local server only (127.0.0.1, user postgres / root). Backups go to C:\laragon\backup\&lt;engine&gt;.</div>
+      </section>
+      <div id="db-error" class="err" style="margin-bottom:10px"></div>
+      <section id="db-pg-tools">
+        <details>
+          <summary>Upgrade PostgreSQL to a new major version</summary>
+          <ol class="mut" style="margin:0 0 10px;padding-left:18px">
+            <li>With the <b>old</b> version running: <b>Dump all</b> (all databases + roles).</li>
+            <li>Install the new version (Install tab), Stop PostgreSQL, pick the new version in Environment, Start it.</li>
+            <li><b>Restore all</b> into the new version. The old data folder stays untouched as a fallback.</li>
+          </ol>
+          <div class="inline">
+            <button onclick="act('Dump all', () => api().DumpAll())">Dump all</button>
+            <button onclick="restoreAll()">Restore all…</button>
+          </div>
+        </details>
+      </section>
+      <section id="db-my-tools" hidden>
+        <details>
+          <summary>MySQL root password</summary>
+          <div class="inline">
+            <input type="password" id="my-pw" placeholder="new password (empty = none)" style="width:200px">
+            <input type="password" id="my-pw2" placeholder="repeat" style="width:160px">
+            <button onclick="setMyPw()">Change</button>
+          </div>
+          <div class="mut" style="margin-top:6px">Changes the password of root and stores it in devpanel.json (this PC only) so DevPanel's tools keep working. Update DB_PASSWORD in your .env files.</div>
+        </details>
+      </section>
+      <section><div id="dbs"></div></section>
+    </div>
+
+    <!-- Processes -->
+    <div class="tab" id="tab-procs">
+      <section><div id="procs"></div></section>
+      <section>
+        <h3>Add / update process</h3>
+        <div class="grid" style="grid-template-columns:1fr 1.2fr 2fr auto">
+          <input type="text" id="pr-name" placeholder="Name, e.g. webshop queue">
+          <select id="pr-dir"></select>
+          <input type="text" id="pr-cmd" placeholder="php artisan queue:work" list="pr-presets">
+          <button class="primary" onclick="saveProc()">Save</button>
+        </div>
+        <datalist id="pr-presets">
+          <option value="php artisan queue:work"><option value="php artisan schedule:work"><option value="php artisan reverb:start">
+          <option value="php artisan horizon"><option value="npm run dev"><option value="php artisan serve --port=8001">
+        </datalist>
+        <label style="display:block;margin-top:8px"><input type="checkbox" id="pr-auto"> Start automatically when DevPanel starts</label>
+        <div class="mut" style="margin-top:6px">Runs with the versions selected in Environment. Processes stop when DevPanel quits.</div>
+      </section>
+      <section id="proc-log-box" hidden><h3 id="proc-log-title"></h3><pre class="out" id="proc-log" style="margin:0;max-height:300px"></pre></section>
+    </div>
+
+    <!-- Settings -->
+    <div class="tab" id="tab-settings">
+      <section>
+        <h3>Startup &amp; tray</h3>
+        <label style="display:block;margin-bottom:8px"><input type="checkbox" id="set-autostart"> Start DevPanel when Windows starts (minimized to tray)</label>
+        <div class="inline" style="margin-bottom:8px"><span class="mut">On login, start group</span><select id="set-group"></select></div>
+        <label style="display:block;margin-bottom:8px"><input type="checkbox" id="set-autosync"> Auto sync vhosts when folders in www change (every 5 s)</label>
+        <label style="display:block;margin-bottom:8px"><input type="checkbox" id="set-watchdog"> Watchdog: restart services that stop unexpectedly (max 3× per 10 min)</label>
+        <label style="display:block"><input type="checkbox" id="set-notify"> Windows notifications (installs, crashes, new projects)</label>
+        <div class="inline" style="margin-top:12px"><button class="primary" onclick="saveSettings()">Save settings</button>
+          <span class="mut">Closing the window keeps DevPanel in the tray. Use the tray menu → Quit to exit.</span></div>
+      </section>
+      <section>
+        <h3>Projects, mail &amp; terminal</h3>
+        <div class="inline" style="margin-bottom:10px">
+          <span class="mut" style="width:120px">Projects folder</span>
+          <input type="text" id="www" class="grow" placeholder="C:\laragon\www">
+          <button onclick="act('Projects folder', () => api().SetWWW($('www').value.trim() === wwwDefault ? '' : $('www').value))">Save</button>
+        </div>
+        <label style="display:block;margin-bottom:10px"><input type="checkbox" id="mailcatch" onchange="act('PHP mail() to Mailpit', () => api().SetMailCatch(this.checked))"> Send PHP mail() to Mailpit (all PHP versions)</label>
+        <div class="inline" style="margin-bottom:10px">
+          <span class="mut" style="width:120px">Terminal</span>
+          <select id="term" onchange="act('Terminal', () => api().SetTerminal(this.value))"><option value="cmd">cmd</option><option value="cmder">Cmder</option></select>
+        </div>
+        <div class="inline">
+          <span class="mut" style="width:120px">Vhost templates</span>
+          <button onclick="api().EditVhostTemplate('apache').catch(e => log(String(e), true))">✎ Apache</button>
+          <button onclick="api().EditVhostTemplate('nginx').catch(e => log(String(e), true))">✎ Nginx</button>
+          <button onclick="act('Reset templates', async () => { await api().ResetVhostTemplate('apache'); await api().ResetVhostTemplate('nginx'); })">Reset</button>
+          <span class="mut" id="tpl-state"></span>
+        </div>
+      </section>
+      <section>
+        <h3>Appearance &amp; shortcuts</h3>
+        <div class="inline">
+          <span class="mut">Theme</span>
+          <select id="theme" onchange="setTheme(this.value)"><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select>
+          <span class="mut">Language</span>
+          <select id="lang" onchange="localStorage.setItem('lang', this.value); location.reload()"><option value="en">English</option><option value="id">Bahasa Indonesia</option></select>
+          <span class="grow"></span>
+          <button onclick="act('Create shortcuts', () => api().CreateShortcuts())">Add to Start Menu &amp; Desktop</button>
+        </div>
+      </section>
+      <section>
+        <h3>Ports</h3>
+        <div id="ports" class="kv" style="grid-template-columns:130px 110px 1fr;align-items:center"></div>
+        <div class="mut" style="margin-top:8px">Edits the service's own config (httpd.conf, postgresql.conf, my.ini, ...). Stop the service first. Remember DB_PORT in project .env files.</div>
+      </section>
+      <section>
+        <h3>hosts file</h3>
+        <div class="inline"><button onclick="previewHosts()">Find stale entries</button><span class="mut" id="hosts-info">Removes old “#laragon magic!” / “#devpanel” lines that no site uses (backup first, asks for admin). Other lines are never touched.</span></div>
+        <pre class="out" id="hosts-preview" hidden></pre>
+        <button class="primary" id="hosts-clean" hidden onclick="act('Clean hosts', () => api().CleanHosts()).then(() => $('hosts-clean').hidden = $('hosts-preview').hidden = true)">Remove these lines</button>
+      </section>
+      <section>
+        <h3>Backup &amp; move</h3>
+        <div class="inline">
+          <button onclick="act('Export settings', () => api().ExportConfig())">Export settings…</button>
+          <button onclick="if (confirm('Import settings? Groups, naming rules, hostnames, site options, packages, sources and processes are replaced (a backup of the current settings is saved).')) act('Import settings', () => api().ImportConfig())">Import settings…</button>
+          <span class="mut">Install path, selected versions and ports stay as on this machine.</span>
+        </div>
+      </section>
+      <section>
+        <h3>HTTPS certificate</h3>
+        <div id="ssl-info" class="kv" style="margin-bottom:10px"></div>
+        <div class="inline">
+          <button class="primary" onclick="trustCA()">Trust certificate</button>
+          <span class="mut">Adds the DevPanel local CA to your Windows user trust store (Windows will ask to confirm). The CA only works for .test, localhost and 127.0.0.1.</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Install -->
+    <div class="tab" id="tab-install">
+      <section>
+        <div class="inline">
+          <input type="text" id="pkg-q" placeholder="Search packages…" style="width:220px" oninput="renderPackages()">
+          <select id="pkg-state" onchange="renderPackages()">
+            <option value="">All</option><option value="available">Available</option><option value="installed">Installed</option>
+          </select>
+          <button style="margin-left:auto" onclick="editCatalog('')" title="Open usr\packages.conf in Notepad++; click Refresh after saving">✎ Edit packages.conf</button>
+          <button onclick="refreshPackages()">↻ Refresh</button>
+          <button onclick="checkUpdates()">Check updates</button>
+        </div>
+        <div class="chips" id="pkg-cats" style="margin-top:10px"></div>
+      </section>
+      <section id="updates" hidden><h3>Updates</h3><div id="update-list"></div></section>
+      <div id="pkg-errors" class="err" style="margin-bottom:10px"></div>
+      <section><div id="packages"></div></section>
+
+      <section>
+        <details>
+          <summary>Add package link</summary>
+          <div class="grid">
+            <input type="text" id="np-name" placeholder="Name, e.g. php-8.3.20">
+            <input type="text" id="np-url" placeholder="https://…/package.zip">
+            <select id="np-type"></select>
+            <button class="primary" onclick="addPackage()">Add</button>
+          </div>
+          <div class="mut" style="margin-top:6px">Only .zip archives. Type decides the install folder (bin\php, bin\mysql, …); Auto guesses from the name.</div>
+        </details>
+      </section>
+      <section>
+        <details>
+          <summary>Sources</summary>
+          <div id="sources"></div>
+          <div class="inline" style="margin-top:8px">
+            <input type="text" id="ns-url" class="grow" placeholder="https://…/packages.conf or C:\path\catalog.conf">
+            <button class="primary" onclick="addSource()">Add source</button>
+          </div>
+          <div class="mut" style="margin-top:6px">Same format as Laragon's usr\packages.conf: one <code>name=url</code> per line, # for comments.</div>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <footer><div id="log"></div></footer>
+
+<script>
+// ---- Language: translate visible UI text (static and rendered later). Backend messages stay English.
+const ID = {
+  'Services': 'Layanan', 'Groups': 'Grup', 'Environment': 'Lingkungan', 'Sites': 'Situs', 'Databases': 'Database', 'Processes': 'Proses',
+  'Install': 'Instal', 'Settings': 'Pengaturan', 'Start': 'Jalankan', 'Stop': 'Hentikan', 'running': 'berjalan', 'stopped': 'berhenti',
+  'not installed': 'belum terpasang', 'Start group': 'Jalankan grup', 'New group': 'Grup baru', 'Group name': 'Nama grup', 'Save group': 'Simpan grup',
+  'No groups yet': 'Belum ada grup', 'Selected versions': 'Versi terpilih', 'Tools': 'Alat', 'Open terminal': 'Buka terminal',
+  'Apply to Windows PATH': 'Terapkan ke PATH Windows', 'Update Composer': 'Perbarui Composer', 'Apache + CLI': 'Apache + CLI',
+  'running — stop to switch': 'berjalan — hentikan dulu untuk ganti', 'Naming rules': 'Aturan nama', '+ Add rule': '+ Tambah aturan',
+  'Save rules': 'Simpan aturan', 'Prefix': 'Awalan', 'Suffix': 'Akhiran', '(empty = remove)': '(kosong = hapus)',
+  'No rules: hostname = folder name': 'Tanpa aturan: hostname = nama folder', 'Sync vhosts': 'Sinkronkan vhost',
+  'Writes Apache vhosts and adds missing hosts entries (asks for admin). Run after renaming.': 'Menulis vhost dan menambah entri hosts yang kurang (minta izin admin). Jalankan setelah mengganti nama.',
+  'Filter…': 'Saring…', 'Save': 'Simpan', 'Reset': 'Atur ulang', 'Open': 'Buka', 'custom': 'kustom', 'shared': 'dibagikan',
+  'Details': 'Detail', 'Document root': 'Folder root', 'Root folder': 'Folder root', 'Aliases': 'Alias', 'PHP version': 'Versi PHP',
+  'Framework': 'Framework', 'Public URL': 'URL publik', 'Fix APP_URL': 'Perbaiki APP_URL', 'Stop sharing': 'Berhenti berbagi',
+  '🌐 Share': '🌐 Bagikan', 'Rename…': 'Ganti nama…', '🗑 Delete…': '🗑 Hapus…', 'Terminal': 'Terminal', 'no .env': 'tidak ada .env',
+  'Quick App · new project': 'Quick App · proyek baru', 'Create': 'Buat', 'folder name, e.g. my-shop': 'nama folder, mis. toko-saya',
+  'PostgreSQL database': 'Database PostgreSQL', 'MySQL database': 'Database MySQL', 'SQLite (no server)': 'SQLite (tanpa server)',
+  'Blank PHP': 'PHP kosong', 'No sites': 'Tidak ada situs', 'Add to hosts (admin)': 'Tambahkan ke hosts (admin)',
+  'Backup': 'Cadangkan', 'Restore…': 'Pulihkan…', '✕ Drop': '✕ Hapus', '📁 Backups': '📁 Cadangan', 'No databases': 'Tidak ada database',
+  'Start the service in Services to manage databases': 'Jalankan layanannya di Layanan untuk mengelola database',
+  'Upgrade PostgreSQL to a new major version': 'Upgrade PostgreSQL ke versi mayor baru', 'Dump all': 'Dump semua', 'Restore all…': 'Pulihkan semua…',
+  'MySQL root password': 'Password root MySQL', 'Change': 'Ubah', 'new password (empty = none)': 'password baru (kosong = tanpa)', 'repeat': 'ulangi',
+  'Add / update process': 'Tambah / ubah proses', 'Log': 'Log', 'Edit': 'Ubah', 'Delete': 'Hapus',
+  'Start automatically when DevPanel starts': 'Jalankan otomatis saat DevPanel dibuka',
+  'Runs with the versions selected in Environment. Processes stop when DevPanel quits.': 'Berjalan dengan versi yang dipilih di Lingkungan. Proses berhenti saat DevPanel ditutup.',
+  'No processes. Add e.g. a queue worker or Vite dev server below.': 'Belum ada proses. Tambahkan mis. queue worker atau Vite di bawah.',
+  'Search packages…': 'Cari paket…', 'All': 'Semua', 'Available': 'Tersedia', 'Installed': 'Terpasang', '↻ Refresh': '↻ Muat ulang',
+  'Check updates': 'Cek pembaruan', 'Updates': 'Pembaruan', 'Everything is up to date': 'Semua sudah versi terbaru',
+  '✎ Edit packages.conf': '✎ Ubah packages.conf', 'Add package link': 'Tambah link paket', 'Add': 'Tambah', 'Sources': 'Sumber',
+  'Add source': 'Tambah sumber', 'Remove link': 'Hapus link', 'No packages match': 'Tidak ada paket yang cocok', '✎ Edit': '✎ Ubah',
+  'Startup & tray': 'Startup & tray', 'Start DevPanel when Windows starts (minimized to tray)': 'Jalankan DevPanel saat Windows mulai (di tray)',
+  'On login, start group': 'Saat login, jalankan grup', 'Auto sync vhosts when folders in www change (every 5 s)': 'Sinkron vhost otomatis saat folder di www berubah (tiap 5 dtk)',
+  'Watchdog: restart services that stop unexpectedly (max 3× per 10 min)': 'Watchdog: nyalakan ulang layanan yang mati sendiri (maks 3× per 10 menit)',
+  'Windows notifications (installs, crashes, new projects)': 'Notifikasi Windows (instalasi, crash, proyek baru)', 'Save settings': 'Simpan pengaturan',
+  'Closing the window keeps DevPanel in the tray. Use the tray menu → Quit to exit.': 'Menutup jendela membuat DevPanel tetap di tray. Keluar lewat menu tray → Quit.',
+  'Projects, mail & terminal': 'Proyek, email & terminal', 'Projects folder': 'Folder proyek', 'Send PHP mail() to Mailpit (all PHP versions)': 'Kirim mail() PHP ke Mailpit (semua versi PHP)',
+  'Vhost templates': 'Template vhost', 'built-in': 'bawaan', 'Appearance & shortcuts': 'Tampilan & pintasan', 'Theme': 'Tema', 'Language': 'Bahasa',
+  'System': 'Sistem', 'Dark': 'Gelap', 'Light': 'Terang', 'Add to Start Menu & Desktop': 'Tambah ke Start Menu & Desktop', 'Ports': 'Port',
+  'Apply': 'Terapkan', 'hosts file': 'File hosts', 'Find stale entries': 'Cari entri usang', 'Remove these lines': 'Hapus baris ini',
+  'Backup & move': 'Cadangan & pindah', 'Export settings…': 'Ekspor pengaturan…', 'Import settings…': 'Impor pengaturan…',
+  'Install path, selected versions and ports stay as on this machine.': 'Lokasi instalasi, versi terpilih dan port tetap seperti di komputer ini.',
+  'HTTPS certificate': 'Sertifikat HTTPS', 'Trust certificate': 'Percayai sertifikat', 'Status': 'Status', 'Valid until': 'Berlaku sampai', 'Names': 'Nama',
+  'Configuration & logs': 'Konfigurasi & log', 'Folders': 'Folder', 'View': 'Lihat', 'Quick settings (php.ini)': 'Pengaturan cepat (php.ini)',
+  'Restarts Apache if running.': 'Apache dinyalakan ulang jika berjalan.', 'Extensions': 'Ekstensi',
+  "Toggling edits php.ini and restarts Apache if it's running.": 'Mengubah php.ini dan menyalakan ulang Apache jika berjalan.',
+  'Enable': 'Aktifkan', 'Disable': 'Nonaktifkan', 'Download & enable': 'Unduh & aktifkan', 'enabled': 'aktif', 'installed, off': 'terpasang, nonaktif',
+  'Install it from the Install tab, then pick it in Environment.': 'Instal dari tab Instal, lalu pilih di Lingkungan.',
+  'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
+  'Proxy to': 'Proxy ke', 'proxy': 'proxy', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
+  'Web & App Servers': 'Web & App Server', 'Cache & Messaging': 'Cache & Antrean', 'Search': 'Pencarian',
+  'AI': 'AI', 'Mail & Tools': 'Email & Alat', 'Languages & Runtimes': 'Bahasa & Runtime', 'Other': 'Lainnya',
+  'Version': 'Versi', 'Active version': 'Versi aktif', 'Install another version': 'Instal versi lain', 'stop it to switch': 'hentikan dulu untuk ganti',
+  'Apache, Nginx and CLI': 'Apache, Nginx dan CLI', 'All catalog versions are installed': 'Semua versi di katalog sudah terpasang',
+  'No versions in the catalog (add a link in Install)': 'Tidak ada versi di katalog (tambahkan link di Instal)',
+  '▶ Start All': '▶ Jalankan semua', '■ Stop All': '■ Hentikan semua', '⚙ Manage services': '⚙ Kelola layanan',
+  'Start All runs every service ticked in Manage services.': 'Jalankan semua menyalakan setiap layanan yang dicentang di Kelola layanan.',
+  'Tick the services you use. Only those are shown, offered in groups and started by Start All. Missing ones install in place (newest version).':
+    'Centang layanan yang dipakai. Hanya itu yang tampil, muncul di grup, dan dinyalakan oleh Jalankan semua. Yang belum ada bisa langsung diinstal (versi terbaru).', 'Move the folder to the Recycle Bin': 'Pindahkan folder ke Recycle Bin',
+};
+const lang = localStorage.getItem('lang') || 'en';
+function translate(root) {
+  if (lang !== 'id') return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n; (n = w.nextNode());) {
+    const t = n.nodeValue.trim();
+    if (t && ID[t]) n.nodeValue = n.nodeValue.replace(t, ID[t]);
+  }
+  root.querySelectorAll?.('[placeholder],[title]').forEach(el => {
+    for (const a of ['placeholder', 'title']) { const v = el.getAttribute(a); if (v && ID[v]) el.setAttribute(a, ID[v]); }
+  });
+}
+if (lang === 'id') {
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => translate(n.nodeType === 1 ? n : n.parentNode || document.body)))).observe(document.body, { childList: true, subtree: true });
+}
+
+// Every api().Method(...args) goes to the background agent through Proxy.Call (see agent.go).
+const apiProxy = new Proxy({}, { get: (_, method) => (...args) => window.go.main.Proxy.Call(method, args) });
+const api = () => apiProxy;
+let busy = false;
+let sites = [], rules = [], pkgList = { packages: [], sources: [], errors: [] }, pkgCat = '';
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+const $ = id => document.getElementById(id);
+
+function log(msg, err) {
+  const d = document.createElement('div');
+  d.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+  if (err) d.className = 'err';
+  $('log').prepend(d);
+}
+
+// Runs a backend call with action buttons disabled, then re-renders everything.
+async function act(label, fn) {
+  if (busy) return;
+  busy = true;
+  document.querySelectorAll('main button, main select').forEach(b => b.disabled = true);
+  log(label + '...');
+  let ok = true;
+  try {
+    const r = await fn();
+    log(label + ': ' + (r || 'ok'));
+  } catch (e) {
+    ok = false;
+    log(label + ': ' + e, true);
+  }
+  busy = false;
+  await renderAll();
+  return ok;
+}
+
+$('tabs').addEventListener('click', e => {
+  const t = e.target.dataset.tab;
+  if (!t) return;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('.tab').forEach(d => d.classList.toggle('active', d.id === 'tab-' + t));
+});
+
+// ---- Categories (like FlyEnv's sidebar) ----
+let CATS = [];
+const collapsed = new Set(JSON.parse(localStorage.getItem('collapsed') || '[]'));
+// grouped renders items under collapsible category headers, in category order. view keeps each list's state apart.
+function grouped(items, rowFn, view, rerender) {
+  const out = [];
+  for (const c of CATS) {
+    const its = items.filter(x => (x.category || 'Other') === c);
+    if (!its.length) continue;
+    const id = view + ':' + c;
+    const shut = collapsed.has(id);
+    const running = its.filter(x => x.running).length;
+    const h = el(`<div class="cat"><span>${shut ? '▸' : '▾'}</span><span>${esc(c)}</span><span class="n">${running ? running + ' on · ' : ''}${its.length}</span></div>`);
+    h.onclick = () => {
+      shut ? collapsed.delete(id) : collapsed.add(id);
+      localStorage.setItem('collapsed', JSON.stringify([...collapsed]));
+      rerender();
+    };
+    out.push(h);
+    if (!shut) out.push(...its.map(rowFn));
+  }
+  return out;
+}
+
+// ---- Services ----
+let selected = 'apache', lastRunning = {};
+
+async function renderServices() {
+  const [all, runtimes] = await Promise.all([api().Status(), api().Runtimes()]);
+  const list = all.filter(s => s.enabled || s.running);
+  $('summary').textContent = `${list.filter(s => s.running).length}/${list.length} services running`;
+  const row = s => {
+    if (s.name === 'php' || s.runtime) { // languages have no process of their own: versions, PATH and tools
+      const sub = s.name === 'php' ? 'config &amp; extensions' : esc(s.version || 'not installed');
+      const p = el(`<div class="row ${selected === s.name ? 'sel' : ''}"><span class="dot" style="background:transparent;border:1px solid var(--off)"></span>
+        <span class="grow"><div>${esc(s.label || s.name)}</div><div class="mut ellipsis">${sub}</div></span></div>`);
+      p.dataset.name = s.name;
+      p.onclick = () => selectDetail(s.name);
+      return p;
+    }
+    const r = el(`<div class="row ${s.name === selected ? 'sel' : ''}"><span class="dot ${s.running ? 'on' : ''}"></span>
+      <span class="grow"><div>${esc(s.name)}</div><div class="mut ellipsis">${esc(s.version || 'not installed')}</div></span><button></button></div>`);
+    const b = r.querySelector('button');
+    b.textContent = s.running ? 'Stop' : 'Start';
+    b.className = s.running ? '' : 'primary';
+    b.disabled = busy || !s.version;
+    b.onclick = e => { e.stopPropagation(); act((s.running ? 'Stop ' : 'Start ') + s.name, () => s.running ? api().Stop(s.name) : api().Start(s.name)); };
+    r.onclick = () => selectDetail(s.name);
+    r.dataset.name = s.name;
+    return r;
+  };
+  const langs = [{ name: 'php', label: 'PHP', category: 'Languages & Runtimes' }, ...runtimes.map(r => ({ ...r, runtime: true }))];
+  $('services').replaceChildren(...grouped([...list, ...langs], row, 'svc', renderServices));
+  // Refresh the open detail when its running state changes (e.g. after Start).
+  const cur = list.find(s => s.name === selected);
+  if (cur && lastRunning[selected] !== undefined && lastRunning[selected] !== cur.running) renderDetail();
+  list.forEach(s => lastRunning[s.name] = s.running);
+  const gs = $('gsvcs');
+  const key = list.map(s => s.name).join(',');
+  if (gs.dataset.key !== key) { // rebuild when the ticked services change, keeping current checks
+    const checked = new Set([...gs.querySelectorAll('input:checked')].map(i => i.value));
+    gs.replaceChildren(...CATS.flatMap(c => {
+      const its = list.filter(s => s.category === c);
+      if (!its.length) return [];
+      return [el(`<span class="mut" style="margin:0 4px 0 8px">${esc(c)}:</span>`),
+        ...its.map(s => el(`<label><input type="checkbox" value="${esc(s.name)}" ${checked.has(s.name) ? 'checked' : ''}> ${esc(s.name)}</label>`))];
+    }));
+    gs.dataset.key = key;
+  }
+}
+
+function toggleManage() { $('manage').hidden = !$('manage').hidden; if (!$('manage').hidden) renderManage(); }
+
+async function renderManage() {
+  const list = await api().ServiceList();
+  $('manage-list').replaceChildren(...grouped(list, s => {
+    const r = el(`<div class="row"><label class="w-label" style="width:150px"><input type="checkbox" ${s.enabled ? 'checked' : ''}> ${esc(s.label)}</label>
+      <span class="grow mut ellipsis">${s.installed ? esc(s.version) + (s.running ? ' · running' : '') : 'not installed'}</span>
+      ${s.installed ? '' : '<progress hidden></progress><button class="primary">Install</button>'}</div>`);
+    r.dataset.pkg = '';
+    const cb = r.querySelector('input');
+    cb.disabled = busy;
+    cb.onchange = () => act(`${cb.checked ? 'Use' : 'Hide'} ${s.label}`, () => api().SetServiceEnabled(s.name, cb.checked)).then(renderManage);
+    const b = r.querySelector('button');
+    if (b) {
+      b.disabled = busy;
+      b.onclick = () => { r.querySelector('progress').hidden = false; act('Install ' + s.label, () => api().InstallService(s.name)).then(renderManage); };
+    }
+    return r;
+  }, 'manage', renderManage));
+}
+
+function selectDetail(name) {
+  selected = name;
+  document.querySelectorAll('#services .row').forEach(r => r.classList.toggle('sel', r.dataset.name === name));
+  renderDetail();
+}
+
+let detailOut = '';
+async function renderDetail() {
+  let d;
+  try { d = await api().Detail(selected); } catch (e) { $('detail').textContent = String(e); return; }
+  const box = el(`<div></div>`);
+  const head = el(`<section><div class="inline" style="margin-bottom:10px">
+      <b style="font-size:16px">${esc(d.label || d.name)}</b>
+      ${d.service ? `<span class="badge ${d.running ? 'ok' : ''}">${d.running ? 'running' : 'stopped'}${d.port ? ' · :' + d.port : ''}</span>` : ''}
+      <span class="mut">${esc(d.version || 'not installed')}</span></div>
+    <div class="kv"></div></section>`);
+  head.querySelector('.kv').replaceChildren(...(d.info || []).flatMap(([k, v]) => [el(`<span class="mut">${esc(k)}</span>`), el(`<span>${esc(v)}</span>`)]));
+  if (!d.version) head.append(el(`<div class="mut">Install it from the Install tab, then pick it in Environment.</div>`));
+  box.append(head);
+  box.append(await versionSection(d));
+
+  if (d.files?.length) {
+    const s = el(`<section><h3>Configuration &amp; logs</h3></section>`);
+    for (const f of d.files) {
+      const r = el(`<div class="row"><span class="grow ellipsis" title="${esc(f.path)}">${esc(f.label)} <span class="mut">${f.exists ? '' : '(missing)'}</span></span>
+        ${f.log ? '<button class="view">View</button>' : ''}<button class="edit">Edit</button></div>`);
+      r.querySelector('.edit').disabled = !f.exists;
+      r.querySelector('.edit').onclick = () => api().EditFile(f.path).then(() => log('Opened ' + f.label + ' in editor')).catch(e => log('Edit: ' + e, true));
+      const v = r.querySelector('.view');
+      if (v) { v.disabled = !f.exists; v.onclick = () => api().TailFile(f.path, 200).then(t => { detailOut = `── ${f.label} (last 200 lines) ──\n` + (t || '(empty)'); showOut(); }).catch(e => log('View: ' + e, true)); }
+      s.append(r);
+    }
+    box.append(s);
+  }
+  if (d.folders?.length) {
+    const s = el(`<section><h3>Folders</h3><div class="inline"></div></section>`);
+    for (const f of d.folders) {
+      const b = el(`<button title="${esc(f.path)}">📁 ${esc(f.label)}</button>`);
+      b.disabled = !f.exists;
+      b.onclick = () => api().OpenFolder(f.path).catch(e => log('Open: ' + e, true));
+      s.querySelector('.inline').append(b);
+    }
+    box.append(s);
+  }
+  if (d.tools?.length) {
+    const s = el(`<section><h3>Tools</h3><div class="inline"></div><pre class="out" hidden></pre></section>`);
+    for (const t of d.tools) {
+      const b = el(`<button>${esc(t.label)}</button>`);
+      b.onclick = () => {
+        if (t.url) return window.runtime.BrowserOpenURL(t.url);
+        b.disabled = true;
+        api().RunTool(d.name, t.id).then(o => { detailOut = `$ ${t.label}\n${o}`; showOut(); }).catch(e => log(t.label + ': ' + e, true)).finally(() => b.disabled = false);
+      };
+      s.querySelector('.inline').append(b);
+    }
+    box.append(s);
+  }
+  if (d.name === 'php' && d.version) box.append(await xdebugSection(), await phpSettingsSection(), await phpExtSection());
+  $('detail').replaceChildren(box);
+  if (detailOut) showOut();
+}
+
+function showOut() {
+  const pre = document.querySelector('#detail pre.out');
+  if (!pre) return log(detailOut);
+  pre.hidden = false;
+  pre.textContent = detailOut;
+}
+
+// Version: switch between installed versions and install others from the catalog, right in the detail panel.
+async function versionSection(d) {
+  let [env, pkgs] = await Promise.all([api().Environment(), api().PackagesFor(d.name)]);
+  // No catalog versions (standalone, no Laragon packages.conf): ask the official PHP / Node feeds.
+  if ((d.name === 'php' || d.name === 'nodejs') && !pkgs.some(p => !p.installed)) pkgs = await api().OnlinePackages(d.name);
+  const t = env.find(x => x.name === d.name) || { versions: [], version: '', label: d.name };
+  const s = el(`<section><h3>Version</h3>
+    <div class="inline"><span class="mut" style="width:110px">Active version</span><select class="grow"></select><span class="mut vhint"></span></div>
+    <div class="inline" style="margin:12px 0 4px"><span class="mut grow">Install another version</span></div>
+    <div class="pk"></div></section>`);
+  const sel = s.querySelector('select');
+  if (!t.versions.length) {
+    sel.replaceChildren(new Option('not installed', ''));
+    sel.disabled = true;
+  } else {
+    sel.replaceChildren(...t.versions.map(v => { const o = new Option(v, v); o.selected = v === t.version; return o; }));
+    sel.disabled = busy || (t.service && t.running);
+  }
+  s.querySelector('.vhint').textContent = t.service && t.running ? 'stop it to switch' : d.name === 'php' ? 'Apache, Nginx and CLI' : '';
+  sel.onchange = () => act(`Use ${t.label} ${sel.value}`, () => api().SetVersion(d.name, sel.value));
+  if (d.name === 'php') {
+    const up = el('<button>Check updates</button>');
+    up.disabled = busy;
+    up.onclick = () => act('Check updates', async () => { const u = await api().CheckUpdates(); return u.length + ' update(s)'; });
+    s.querySelectorAll('.inline')[1].append(up);
+  }
+  const avail = pkgs.filter(p => !p.installed);
+  s.querySelector('.pk').replaceChildren(...(avail.length ? avail.map(p => {
+    const r = el(`<div class="row" data-pkg="${esc(p.name)}"><span class="grow ellipsis" title="${esc(p.url)}"><b style="font-weight:500">${esc(p.name)}</b> <span class="mut">${esc(p.folder)}</span></span>
+      <span class="badge src">${esc(p.source)}</span><progress hidden></progress><button class="primary">Install</button></div>`);
+    const b = r.querySelector('button');
+    b.disabled = busy;
+    b.onclick = () => { r.querySelector('progress').hidden = false; act('Install ' + p.name, () => api().Install(p.name)); };
+    return r;
+  }) : [el(`<div class="empty">${pkgs.length ? 'All catalog versions are installed' : 'No versions in the catalog (add a link in Install)'}</div>`)]));
+  return s;
+}
+
+async function xdebugSection() {
+  const x = await api().Xdebug();
+  const s = el(`<section><h3>Xdebug</h3><div class="inline">
+    <span class="badge ${x.enabled ? 'ok' : ''}">${x.enabled ? 'enabled' : x.installed ? 'installed, off' : 'not installed'}</span>
+    ${x.mode ? `<span class="mut">mode=${esc(x.mode)}</span>` : ''}<span class="grow"></span>
+    <button class="primary"></button></div>
+    <div class="mut" style="margin-top:6px">Downloads the matching stable DLL from xdebug.org. Debugging starts on trigger (XDEBUG_TRIGGER / browser extension); IDE listens on port 9003.</div></section>`);
+  const b = s.querySelector('button');
+  b.textContent = x.enabled ? 'Disable' : x.installed ? 'Enable' : 'Download & enable';
+  b.onclick = () => act((x.enabled ? 'Disable' : 'Enable') + ' Xdebug', () => api().SetXdebug(!x.enabled));
+  return s;
+}
+
+async function phpSettingsSection() {
+  const s = el(`<section><h3>Quick settings (php.ini)</h3><div class="kv" style="grid-template-columns:170px 1fr;align-items:center"></div>
+    <div class="inline" style="margin-top:10px"><button class="primary">Save</button><span class="mut">Restarts Apache if running.</span></div></section>`);
+  let list;
+  try { list = await api().PHPSettings(); } catch (e) { s.querySelector('.kv').textContent = String(e); return s; }
+  const inputs = {};
+  s.querySelector('.kv').replaceChildren(...list.flatMap(x => {
+    const i = el(`<input type="text" value="${esc(x.value)}" placeholder="${esc(x.hint)}" title="${esc(x.hint)}">`);
+    inputs[x.key] = i;
+    return [el(`<span class="mut">${esc(x.key)}</span>`), i];
+  }));
+  s.querySelector('button').onclick = () => {
+    const vals = {};
+    for (const [k, i] of Object.entries(inputs)) if (i.value.trim()) vals[k] = i.value.trim();
+    act('Save php.ini settings', () => api().SetPHPSettings(vals));
+  };
+  return s;
+}
+
+async function phpExtSection() {
+  const s = el(`<section><div class="inline" style="margin-bottom:10px"><h3 style="margin:0">Extensions</h3>
+    <input type="text" placeholder="Filter…" style="margin-left:auto;width:150px"></div><div class="exts"></div>
+    <div class="mut" style="margin-top:8px">Toggling edits php.ini and restarts Apache if it's running.</div></section>`);
+  let exts;
+  try { exts = await api().PHPExtensions(); } catch (e) { s.querySelector('.exts').textContent = String(e); return s; }
+  const grid = s.querySelector('.exts');
+  const draw = q => grid.replaceChildren(...exts.filter(x => !q || x.name.includes(q)).map(x => {
+    const l = el(`<label><input type="checkbox" ${x.enabled ? 'checked' : ''}> ${esc(x.name)}</label>`);
+    const cb = l.querySelector('input');
+    cb.disabled = busy;
+    cb.onchange = () => act(`${cb.checked ? 'Enable' : 'Disable'} PHP ${x.name}`, () => api().SetPHPExtension(x.name, cb.checked));
+    return l;
+  }));
+  s.querySelector('input').oninput = e => draw(e.target.value.toLowerCase());
+  draw('');
+  return s;
+}
+
+// ---- Groups ----
+async function renderGroups() {
+  const groups = await api().Groups();
+  const entries = Object.entries(groups);
+  $('groups').replaceChildren(...(entries.length ? entries.map(([name, svcs]) => {
+    const r = el(`<div class="row"><span class="grow">${esc(name)} <span class="mut">${esc(svcs.join(' + '))}</span></span>
+      <button class="primary">Start group</button><button class="ghost" title="Delete">✕</button></div>`);
+    const [go, del] = r.querySelectorAll('button');
+    go.onclick = () => act('Start group ' + name, () => api().StartGroup(name));
+    del.onclick = () => act('Delete group ' + name, () => api().DeleteGroup(name));
+    return r;
+  }) : [el(`<div class="empty">No groups yet</div>`)]));
+}
+function saveGroup() {
+  const name = $('gname').value;
+  const svcs = [...document.querySelectorAll('#gsvcs input:checked')].map(i => i.value);
+  act('Save group ' + name, () => api().SaveGroup(name, svcs));
+}
+
+// ---- Environment ----
+async function renderTools() {
+  const list = await api().ToolVersions();
+  $('tools').replaceChildren(...list.map(t => {
+    const r = el(`<div class="row"><span class="w-label">${esc(t.name)}</span><span class="grow mut ellipsis">${esc(t.version)}</span></div>`);
+    if (t.name === 'Composer') {
+      const b = el('<button>Update Composer</button>');
+      b.onclick = () => act('composer self-update', () => api().UpdateComposer()).then(renderTools);
+      r.append(b);
+    }
+    return r;
+  }));
+}
+async function renderEnv() {
+  const list = (await api().Environment()).filter(t => t.enabled);
+  $('env').replaceChildren(...grouped(list, t => {
+    const r = el(`<div class="row"><span class="w-label">${esc(t.label)}</span><select class="grow"></select>
+      <span class="mut" style="width:150px;text-align:right"></span></div>`);
+    const sel = r.querySelector('select');
+    const hint = r.querySelector('span.mut');
+    if (!t.versions.length) {
+      sel.replaceChildren(new Option('not installed — see Install tab', ''));
+      sel.disabled = true;
+    } else {
+      sel.replaceChildren(...t.versions.map(v => { const o = new Option(v, v); o.selected = v === t.version; return o; }));
+      sel.disabled = busy || (t.service && t.running);
+    }
+    hint.textContent = t.service && t.running ? 'running — stop to switch' : t.name === 'php' ? 'Apache + CLI' : `${t.versions.length} installed`;
+    sel.onchange = () => act(`Use ${t.label} ${sel.value}`, () => api().SetVersion(t.name, sel.value));
+    const removable = t.versions.filter(v => v !== t.version);
+    if (removable.length) {
+      const rm = el(`<button class="ghost" title="Uninstall an unused version">🗑</button>`);
+      rm.disabled = busy;
+      rm.onclick = () => {
+        const v = prompt(`Uninstall which ${t.label} version? This deletes its folder in bin\\${t.name}.\nData folders (databases) are kept.\n\nType one of:\n${removable.join('\n')}`);
+        if (!v) return;
+        if (!removable.includes(v.trim())) return log(`Uninstall: "${v}" is not a removable ${t.label} version`, true);
+        act(`Uninstall ${t.label} ${v.trim()}`, () => api().UninstallVersion(t.name, v.trim(), v.trim()));
+      };
+      r.append(rm);
+    }
+    return r;
+  }, 'env', renderEnv));
+}
+function applyPath() {
+  if (!confirm('Update your Windows user PATH with the selected versions?\nOnly C:\\laragon\\bin\\<tool> entries are replaced; a backup is saved next to devpanel.exe.')) return;
+  act('Apply to Windows PATH', () => api().ApplyUserPath());
+}
+
+// ---- Sites ----
+async function loadSites() {
+  const [res, r, pv, pc] = await Promise.all([api().Sites(), api().HostRules(), api().PHPVersions(), api().CurrentPHP()]);
+  phpVersions = { list: pv, current: pc };
+  sites = res.sites || [];
+  $('sites-error').textContent = res.error;
+  $('hosts-banner').hidden = !res.missing;
+  $('hosts-banner').querySelector('.grow').textContent = `${res.missing} site(s) not in the Windows hosts file yet, so their URLs won't resolve.`;
+  if (!document.querySelector('#rules :focus')) { rules = r.map(x => ({ ...x })); renderRules(); }
+  renderSites();
+}
+
+function renderRules() {
+  $('rules').replaceChildren(...(rules.length ? rules.map((ru, i) => {
+    const r = el(`<div class="row"><select><option value="prefix">Prefix</option><option value="suffix">Suffix</option></select>
+      <input type="text" placeholder="app_" style="width:160px"><span class="mut">→</span>
+      <input type="text" placeholder="(empty = remove)" style="width:200px"><span class="grow"></span>
+      <button class="ghost" title="Remove">✕</button></div>`);
+    const [kind] = r.querySelectorAll('select');
+    const [from, to] = r.querySelectorAll('input');
+    kind.value = ru.kind; from.value = ru.from; to.value = ru.to;
+    kind.onchange = () => ru.kind = kind.value;
+    from.oninput = () => ru.from = from.value;
+    to.oninput = () => ru.to = to.value;
+    r.querySelector('button').onclick = () => { rules.splice(i, 1); renderRules(); };
+    return r;
+  }) : [el(`<div class="empty">No rules: hostname = folder name</div>`)]));
+}
+function addRule() { rules.push({ kind: 'prefix', from: '', to: '' }); renderRules(); }
+function saveRules() { act('Save naming rules', () => api().SetHostRules(rules)); }
+
+let openSite = '', share = { host: '', url: '' }, phpVersions = { list: [], current: '' };
+
+function renderSites() {
+  const q = $('filter').value.toLowerCase();
+  const list = sites.filter(s => !q || s.folder.toLowerCase().includes(q) || s.host.includes(q) || (s.framework || '').toLowerCase().includes(q));
+  $('sites').replaceChildren(...(list.length ? list.flatMap(s => {
+    const custom = s.host !== s.default;
+    const shared = share.host === s.host && share.url;
+    const r = el(`<div class="row"><button class="ghost exp" title="Details" style="color:var(--fg)">${openSite === s.folder ? '▾' : '▸'}</button>
+      <span class="folder mut ellipsis" title="${esc(s.root)}">${esc(s.folder)}</span>
+      <input type="text" class="grow" value="${esc(s.host)}" placeholder="${esc(s.default)}">
+      ${s.framework ? `<span class="badge">${esc(s.framework)}</span>` : ''}
+      ${custom ? '<span class="badge">custom</span>' : ''}
+      ${s.urlOk ? '' : '<span class="badge" style="color:var(--warn)" title="APP_URL in .env points elsewhere">APP_URL</span>'}
+      ${shared ? '<span class="badge ok">shared</span>' : ''}
+      ${s.proxy ? `<span class="badge" title="${esc(s.proxy)}">proxy</span>` : ''}
+      <button class="sv">Save</button><button class="rs" ${custom ? '' : 'disabled'}>Reset</button><button class="op">Open</button></div>`);
+    const input = r.querySelector('input');
+    r.querySelector('.sv').onclick = () => act(`Rename ${s.folder} → ${input.value}`, () => api().SetHostname(s.folder, input.value));
+    input.onkeydown = e => { if (e.key === 'Enter') r.querySelector('.sv').click(); };
+    r.querySelector('.rs').onclick = () => act(`Reset ${s.folder}`, () => api().SetHostname(s.folder, ''));
+    r.querySelector('.op').onclick = () => window.runtime.BrowserOpenURL('http://' + s.host);
+    r.querySelector('.exp').onclick = () => { openSite = openSite === s.folder ? '' : s.folder; renderSites(); };
+    if (busy) r.querySelectorAll('button:not(.exp)').forEach(b => b.disabled = true);
+    return openSite === s.folder ? [r, siteDetail(s)] : [r];
+  }) : [el(`<div class="empty">No sites</div>`)]));
+}
+
+function siteDetail(s) {
+  const shared = share.host === s.host && share.url;
+  const d = el(`<div style="background:var(--card2);border-radius:8px;padding:12px 14px;margin:2px 0 8px">
+    <div class="kv" style="margin-bottom:10px">
+      <span class="mut">Document root</span><span>${esc(s.root)}</span>
+      <span class="mut">Framework</span><span>${esc(s.framework || 'unknown')}</span>
+      <span class="mut">APP_URL</span><span>${s.appUrl ? esc(s.appUrl) : '<span class="mut">no .env</span>'} ${s.urlOk ? '' : '<span style="color:var(--warn)">≠ ' + esc(s.host) + '</span> <button class="fix">Fix APP_URL</button>'}</span>
+      ${shared ? `<span class="mut">Public URL</span><span><a href="#" class="pub">${esc(share.url)}</a></span>` : ''}
+    </div>
+    <div class="inline" style="margin-bottom:8px">
+      <span class="mut" style="width:100px">Root folder</span>
+      <input type="text" class="root" value="${esc(s.rootRel)}" placeholder="auto (public/ if present) · . = project folder" style="width:300px">
+      <span class="mut" style="width:60px">Aliases</span>
+      <input type="text" class="al grow" value="${esc((s.aliases || []).join(', '))}" placeholder="api.shop.test, admin (adds .test)">
+      <button class="primary save-opt">Save</button>
+    </div>
+    <div class="inline" style="margin-bottom:8px">
+      <span class="mut" style="width:100px">PHP version</span><select class="php"></select>
+      <span class="mut">Apache: per-site php-cgi · Nginx: own php-cgi pool</span>
+    </div>
+    <div class="inline" style="margin-bottom:8px">
+      <span class="mut" style="width:100px">Proxy to</span>
+      <input type="text" class="proxy" value="${esc(s.proxy || '')}" placeholder="empty = serve files/PHP · e.g. 127.0.0.1:5173 (Vite), 127.0.0.1:3000 (Node)" style="width:420px">
+      <button class="save-proxy">Save</button>
+    </div>
+    <div class="inline">
+      <button class="code">VS Code</button><button class="exp2">📁 Explorer</button><button class="term">Terminal</button>
+      <button class="ren">Rename…</button><button class="ghost del" title="Move the folder to the Recycle Bin">🗑 Delete…</button>
+      <span class="grow"></span>
+      ${shared ? '<button class="unshare">Stop sharing</button>' : '<button class="share" title="Public URL via ngrok">🌐 Share</button>'}
+    </div></div>`);
+  const q = c => d.querySelector(c);
+  q('.save-opt').onclick = () => act(`Options ${s.folder}`, () => api().SetSiteOptions(s.folder, q('.root').value, q('.al').value.split(',').map(x => x.trim()).filter(Boolean)));
+  q('.save-proxy').onclick = () => act(`Proxy ${s.folder} → ${q('.proxy').value || 'off'}`, () => api().SetSiteProxy(s.folder, q('.proxy').value));
+  const ps = q('.php');
+  ps.replaceChildren(new Option('default (' + (phpVersions.current || '?') + ')', ''), ...phpVersions.list.map(v => { const o = new Option(v, v); o.selected = v === s.php; return o; }));
+  ps.onchange = () => act(`PHP for ${s.folder} → ${ps.value || 'default'}`, () => api().SetSitePHP(s.folder, ps.value));
+  q('.ren').onclick = () => {
+    const n = prompt(`Rename folder ${s.folder} to:`, s.folder);
+    if (n && n !== s.folder) act(`Rename ${s.folder} → ${n}`, () => api().RenameProject(s.folder, n.trim())).then(() => openSite = n.trim());
+  };
+  q('.del').onclick = () => {
+    const c = prompt(`Move ${s.folder} to the Recycle Bin?\nIts database is kept. Type the folder name to confirm:`);
+    if (c !== null) act(`Delete ${s.folder}`, () => api().DeleteProject(s.folder, c));
+  };
+  q('.code').onclick = () => api().OpenSite(s.folder, 'code').catch(e => log('VS Code: ' + e, true));
+  q('.exp2').onclick = () => api().OpenSite(s.folder, 'explorer').catch(e => log('Explorer: ' + e, true));
+  q('.term').onclick = () => api().OpenSite(s.folder, 'terminal').catch(e => log('Terminal: ' + e, true));
+  if (q('.fix')) q('.fix').onclick = () => act(`Fix APP_URL ${s.folder}`, () => api().FixAppURL(s.folder));
+  if (q('.pub')) q('.pub').onclick = e => { e.preventDefault(); window.runtime.BrowserOpenURL(share.url); };
+  if (q('.unshare')) q('.unshare').onclick = () => act('Stop sharing', async () => { await api().StopShare(); share = { host: '', url: '' }; });
+  if (q('.share')) q('.share').onclick = async () => {
+    if (!(await api().NgrokReady())) {
+      const tok = prompt('ngrok needs an authtoken (free account at dashboard.ngrok.com → Your Authtoken).\nPaste it here:');
+      if (!tok) return;
+      if (!(await act('Save ngrok token', () => api().SetNgrokToken(tok)))) return;
+    }
+    if (!confirm(`Make ${s.host} reachable from the internet through ngrok?\nAnyone with the URL can open it until you stop sharing.`)) return;
+    act('Share ' + s.host, async () => { share = await api().ShareSite(s.folder); return share.url; });
+  };
+  if (busy) d.querySelectorAll('button').forEach(b => b.disabled = true);
+  return d;
+}
+
+// ---- Quick App ----
+const qaHints = {
+  laravel: 'composer create-project, creates the database (service must be running), fills APP_URL and DB_* in .env. Migrations are not run.',
+  wordpress: 'Downloads the latest WordPress, creates a MySQL database and writes wp-config.php with fresh salts. Finish in the browser.',
+  symfony: 'composer create-project symfony/skeleton. The database is created; set DATABASE_URL yourself.',
+  codeigniter: 'composer create-project codeigniter4/appstarter. The database is created; set it in .env / app/Config.',
+  cakephp: 'composer create-project cakephp/app (document root: webroot). The database is created; set it in config/app_local.php.',
+  drupal: 'composer create-project drupal/recommended-project (document root: web). The database is created; enter it in the installer.',
+  blank: 'Empty folder with public/index.php.',
+};
+function qaKindChanged() {
+  const k = $('qa-kind').value;
+  $('qa-db').disabled = k === 'blank';
+  if (k === 'wordpress') $('qa-db').value = 'mysql';
+  $('qa-hint').textContent = qaHints[k];
+}
+async function createApp() {
+  const kind = $('qa-kind').value, name = $('qa-name').value.trim(), db = $('qa-db').value;
+  $('qa-log').hidden = false;
+  $('qa-log').textContent = '';
+  const ok = await act(`Create ${kind} app ${name}`, () => api().CreateApp(kind, name, kind === 'laravel' ? db : 'sqlite'));
+  if (ok) $('qa-name').value = '';
+}
+function sync() { act('Sync vhosts', () => api().SyncVhosts()); }
+
+// ---- Install ----
+async function checkUpdates() {
+  const ok = await act('Check updates', async () => {
+    const ups = await api().CheckUpdates();
+    $('updates').hidden = false;
+    $('update-list').replaceChildren(...(ups.length ? ups.map(u => {
+      const r = el(`<div class="row"><span class="w-label">${esc(u.tool)}</span><span class="grow">${esc(u.installed)} → <b>${esc(u.latest)}</b></span><button class="primary">Install ${esc(u.latest)}</button></div>`);
+      r.querySelector('button').onclick = () => act('Install ' + u.package, () => api().Install(u.package));
+      return r;
+    }) : [el('<div class="empty">Everything is up to date</div>')]));
+    return ups.length + ' update(s)';
+  });
+  if (ok) loadPackages();
+}
+const catOf = p => p.group.split('\\').pop();
+
+async function loadPackages() {
+  pkgList = await api().Packages();
+  $('pkg-errors').textContent = pkgList.errors.length ? 'Source errors: ' + pkgList.errors.join(' · ') : '';
+  renderPackages();
+  renderSources();
+}
+
+function renderPackages() {
+  const cats = [...new Set(pkgList.packages.map(catOf))];
+  $('pkg-cats').replaceChildren(...['', ...cats].map(c => {
+    const n = c ? pkgList.packages.filter(p => catOf(p) === c).length : pkgList.packages.length;
+    const b = el(`<button class="chip ${c === pkgCat ? 'active' : ''}">${esc(c || 'All')} <span class="mut">${n}</span></button>`);
+    b.onclick = () => { pkgCat = c; renderPackages(); };
+    return b;
+  }));
+  const q = $('pkg-q').value.toLowerCase(), state = $('pkg-state').value;
+  const list = pkgList.packages.filter(p =>
+    (!pkgCat || catOf(p) === pkgCat) &&
+    (!q || p.name.toLowerCase().includes(q) || p.folder.toLowerCase().includes(q)) &&
+    (!state || (state === 'installed') === p.installed));
+  const rows = [];
+  let cat = null;
+  for (const p of list) {
+    if (catOf(p) !== cat) { cat = catOf(p); rows.push(el(`<h3 style="margin-top:${rows.length ? 14 : 0}px">${esc(cat)}</h3>`)); }
+    const r = el(`<div class="row" data-pkg="${esc(p.name)}">
+      <span class="grow" style="min-width:0">
+        <div class="ellipsis"><b style="font-weight:500">${esc(p.name)}</b> <span class="mut">→ ${esc(p.group)}\\${esc(p.folder)}</span></div>
+        <div class="url ellipsis" title="${esc(p.url)}">${esc(p.url)}</div>
+      </span>
+      <span class="badge src" title="${esc(p.source)}">${esc(p.source)}</span>
+      ${p.installed ? '<span class="badge ok">Installed</span>' : '<progress hidden></progress><button class="primary">Install</button>'}
+      ${p.source === 'Custom' ? '<button class="ghost" title="Remove link">✕</button>' : ''}</div>`);
+    const inst = r.querySelector('button.primary');
+    if (inst) {
+      inst.disabled = busy;
+      inst.onclick = () => { r.querySelector('progress').hidden = false; act('Install ' + p.name, () => api().Install(p.name)); };
+    }
+    const del = r.querySelector('button.ghost');
+    if (del) del.onclick = () => act('Remove ' + p.name, () => api().RemovePackage(p.name));
+    rows.push(r);
+  }
+  $('packages').replaceChildren(...(rows.length ? rows : [el(`<div class="empty">No packages match</div>`)]));
+}
+
+function renderSources() {
+  const fixed = el(`<div class="row"><span class="grow ellipsis">usr\\packages.conf</span><span class="badge">Laragon</span><button>✎ Edit</button></div>`);
+  fixed.querySelector('button').onclick = () => editCatalog('');
+  $('sources').replaceChildren(fixed, ...pkgList.sources.map(s => {
+    const local = !/^https?:\/\//i.test(s);
+    const r = el(`<div class="row"><span class="grow ellipsis" title="${esc(s)}">${esc(s)}</span>
+      <span class="badge">${local ? 'file' : 'url'}</span>${local ? '<button class="edit">✎ Edit</button>' : ''}<button class="ghost" title="Remove">✕</button></div>`);
+    const edit = r.querySelector('button.edit');
+    if (edit) edit.onclick = () => editCatalog(s);
+    r.querySelector('button.ghost').onclick = () => act('Remove source', () => api().RemoveSource(s));
+    return r;
+  }));
+}
+
+function editCatalog(file) {
+  api().EditCatalog(file)
+    .then(() => log(`Opened ${file || 'usr\\packages.conf'} in editor. Save, then click ↻ Refresh.`))
+    .catch(e => log('Edit: ' + e, true));
+}
+
+async function addPackage() {
+  const ok = await act('Add package ' + $('np-name').value, () => api().AddPackage($('np-name').value, $('np-url').value, $('np-type').value));
+  if (ok) { $('np-name').value = ''; $('np-url').value = ''; }
+}
+async function addSource() {
+  const ok = await act('Add source', () => api().AddSource($('ns-url').value));
+  if (ok) $('ns-url').value = '';
+}
+async function refreshPackages() {
+  await api().RefreshSources();
+  act('Refresh sources', () => null);
+}
+
+// ---- Databases ----
+async function restoreAll() {
+  const file = await api().PickSQLFile('postgresql');
+  if (!file) return;
+  const c = prompt(`Replay ${file}\ninto the running PostgreSQL (all databases + roles)?\nType RESTORE ALL to confirm:`);
+  if (c === null) return;
+  act('Restore all', () => api().RestoreAll(file, c)).then(loadDBs);
+}
+function setMyPw() {
+  if (!confirm('Change the MySQL root password? Projects using root need the new DB_PASSWORD.')) return;
+  act('MySQL root password', () => api().SetMySQLPassword($('my-pw').value, $('my-pw2').value)).then(() => { $('my-pw').value = $('my-pw2').value = ''; });
+}
+async function loadDBs() {
+  const engine = $('db-engine').value;
+  $('db-pg-tools').hidden = engine !== 'postgresql';
+  $('db-my-tools').hidden = engine !== 'mysql';
+  $('db-error').textContent = '';
+  let list = [];
+  try { list = await api().Databases(engine); } catch (e) { $('db-error').textContent = String(e); }
+  $('dbs').replaceChildren(...(list.length ? list.map(name => {
+    const r = el(`<div class="row"><span class="grow">${esc(name)}</span>
+      <button class="b">Backup</button><button class="r">Restore…</button><button class="ghost" title="Drop database">✕ Drop</button></div>`);
+    r.querySelector('.b').onclick = () => act(`Backup ${name}`, () => api().BackupDatabase(engine, name));
+    r.querySelector('.r').onclick = async () => {
+      const file = await api().PickSQLFile(engine);
+      if (!file) return;
+      const c = prompt(`Restore ${file}\ninto "${name}"? Existing tables may be overwritten.\nType the database name to confirm:`);
+      if (c === null) return;
+      act(`Restore into ${name}`, () => api().RestoreDatabase(engine, name, file, c));
+    };
+    r.querySelector('.ghost').onclick = () => {
+      const c = prompt(`DROP "${name}" permanently? This cannot be undone.\nTip: Backup first.\nType the database name to confirm:`);
+      if (c === null) return;
+      act(`Drop ${name}`, () => api().DropDatabase(engine, name, c)).then(loadDBs);
+    };
+    if (busy) r.querySelectorAll('button').forEach(b => b.disabled = true);
+    return r;
+  }) : [el(`<div class="empty">${$('db-error').textContent ? 'Start the service in Services to manage databases' : 'No databases'}</div>`)]));
+}
+async function createDB() {
+  const ok = await act('Create database ' + $('db-new').value, () => api().CreateDatabase($('db-engine').value, $('db-new').value));
+  if (ok) $('db-new').value = '';
+  loadDBs();
+}
+
+// ---- Processes ----
+let procLogName = '';
+async function renderProcs() {
+  const [list, folders] = await Promise.all([api().Processes(), api().ProjectFolders()]);
+  const sel = $('pr-dir');
+  if (!sel.options.length) sel.replaceChildren(...folders.map(f => new Option(f, f)));
+  $('procs').replaceChildren(...(list.length ? list.map(p => {
+    const r = el(`<div class="row"><span class="dot ${p.running ? 'on' : ''}"></span>
+      <span class="grow" style="min-width:0"><div>${esc(p.name)} ${p.autostart ? '<span class="badge">auto</span>' : ''}</div>
+      <div class="url ellipsis">www\\${esc(p.dir)} › ${esc(p.cmd)}</div></span>
+      <button class="ss"></button><button class="lg">Log</button><button class="ed">Edit</button><button class="ghost" title="Delete">✕</button></div>`);
+    const ss = r.querySelector('.ss');
+    ss.textContent = p.running ? 'Stop' : 'Start';
+    ss.className = p.running ? 'ss' : 'ss primary';
+    ss.onclick = () => act((p.running ? 'Stop ' : 'Start ') + p.name, () => p.running ? api().StopProcess(p.name) : api().StartProcess(p.name)).then(() => { procLogName = p.name; showProcLog(); });
+    r.querySelector('.lg').onclick = () => { procLogName = p.name; showProcLog(); };
+    r.querySelector('.ed').onclick = () => { $('pr-name').value = p.name; $('pr-dir').value = p.dir; $('pr-cmd').value = p.cmd; $('pr-auto').checked = p.autostart; };
+    r.querySelector('.ghost').onclick = () => { if (confirm(`Delete process "${p.name}"? It will be stopped.`)) act('Delete ' + p.name, () => api().DeleteProcess(p.name)); };
+    if (busy) r.querySelectorAll('button').forEach(b => b.disabled = true);
+    return r;
+  }) : [el(`<div class="empty">No processes. Add e.g. a queue worker or Vite dev server below.</div>`)]));
+}
+async function showProcLog() {
+  if (!procLogName) return;
+  $('proc-log-box').hidden = false;
+  $('proc-log-title').textContent = 'Log · ' + procLogName;
+  const pre = $('proc-log');
+  const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+  pre.textContent = (await api().ProcessLog(procLogName)) || '(no output yet — start the process)';
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
+}
+function saveProc() {
+  act('Save process ' + $('pr-name').value, () => api().SaveProcess({ name: $('pr-name').value, dir: $('pr-dir').value, cmd: $('pr-cmd').value, autostart: $('pr-auto').checked }));
+}
+
+// ---- Settings ----
+let wwwDefault = '';
+async function renderSettings() {
+  const [st, groups, ssl, www, mail, term, tpls] = await Promise.all([api().Settings(), api().Groups(), api().SSL(), api().WWW(), api().MailCatch(), api().Terminal(), api().CustomTemplates()]);
+  if (!document.querySelector('#tab-settings :focus')) {
+    $('www').value = www; $('mailcatch').checked = mail; $('term').value = term;
+  }
+  $('tpl-state').textContent = Object.entries(tpls).filter(([, v]) => v).map(([k]) => k + ': custom').join(', ') || 'built-in';
+  if (!document.querySelector('#tab-settings :focus')) {
+    $('set-autostart').checked = st.autostart;
+    $('set-autosync').checked = st.autoSync;
+    $('set-watchdog').checked = st.watchdog;
+    $('set-notify').checked = st.notify;
+    $('set-group').replaceChildren(new Option('(none)', ''), ...Object.keys(groups).map(g => { const o = new Option(g, g); o.selected = g === st.startGroup; return o; }));
+  }
+  const rows = [
+    ['Status', ssl.trusted ? '✔ trusted by Windows' : ssl.expires ? '✖ not trusted yet — click Trust certificate' : 'not created yet — run Sync vhosts'],
+    ['Valid until', ssl.expires || '–'],
+    ['Names', ssl.names ? ssl.names + ' (all sites + wildcards)' : '–'],
+    ['CA file', ssl.certPath],
+  ];
+  if (ssl.skipped?.length) rows.push(['No HTTPS', ssl.skipped.join(', ') + ' (outside .test)']);
+  $('ssl-info').replaceChildren(...rows.flatMap(([k, v]) => [el(`<span class="mut">${esc(k)}</span>`), el(`<span>${esc(v)}</span>`)]));
+}
+function saveSettings() {
+  act('Save settings', () => api().SaveSettings({ autostart: $('set-autostart').checked, autoSync: $('set-autosync').checked, startGroup: $('set-group').value, watchdog: $('set-watchdog').checked, notify: $('set-notify').checked }));
+}
+async function renderPorts() {
+  const list = await api().Ports();
+  if (document.querySelector('#ports :focus')) return;
+  $('ports').replaceChildren(...list.flatMap(p => {
+    const i = el(`<input type="text" value="${p.port}" style="width:100px">`);
+    const b = el(`<button>Apply</button>`);
+    b.disabled = busy;
+    b.onclick = () => act(`Port ${p.label} → ${i.value}`, () => api().SetPort(p.key, parseInt(i.value, 10) || 0));
+    const cell = el(`<span class="inline"></span>`);
+    cell.append(b);
+    return [el(`<span class="mut">${esc(p.label)}</span>`), i, cell];
+  }));
+}
+async function previewHosts() {
+  try {
+    const lines = await api().StaleHosts();
+    $('hosts-preview').hidden = false;
+    $('hosts-preview').textContent = lines.length ? lines.join('\n') : 'Nothing to clean.';
+    $('hosts-clean').hidden = !lines.length;
+  } catch (e) { log('hosts: ' + e, true); }
+}
+function applyTheme() {
+  const t = localStorage.getItem('theme') || 'system';
+  const light = t === 'light' || (t === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+  document.documentElement.dataset.theme = light ? 'light' : 'dark';
+  $('theme').value = t;
+}
+function setTheme(t) { localStorage.setItem('theme', t); applyTheme(); }
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme);
+
+function trustCA() { act('Trust certificate', () => api().TrustCA()); }
+
+async function renderAll() {
+  await Promise.all([renderServices(), renderGroups(), renderEnv(), loadSites(), loadPackages(), renderDetail(), renderProcs(), renderSettings(), renderPorts()]);
+  if (!$('tools').children.length) renderTools();
+  share = await api().CurrentShare();
+}
+
+window.addEventListener('load', async () => {
+  // Bindings are injected by Wails shortly after load.
+  applyTheme();
+  $('lang').value = lang;
+  translate(document.body);
+  qaKindChanged();
+  while (!window.go) await new Promise(r => setTimeout(r, 50));
+  CATS = await api().Categories();
+  $('ver').textContent = 'v' + await api().Version();
+  const types = await api().PackageTypes();
+  $('np-type').replaceChildren(new Option('Auto (from name)', ''), ...types.map(t => new Option(t, t)));
+  await renderAll();
+  window.runtime.EventsOn('progress', (name, done, total) => {
+    const row = document.querySelector(`[data-pkg="${CSS.escape(name)}"]`);
+    const p = (row && row.querySelector('progress')) || document.querySelector('#manage-list progress:not([hidden])');
+    if (!p) return;
+    p.hidden = false;
+    if (total > 0) { p.max = total; p.value = done; } else p.removeAttribute('value');
+    p.title = (done / 1048576).toFixed(1) + ' MB';
+  });
+  setInterval(() => { if (!busy) renderServices(); }, 3000);
+  setInterval(() => { if (!busy && !$('tab-procs').hidden && document.querySelector('#tab-procs.active')) { renderProcs(); showProcLog(); } }, 1500);
+  window.runtime.EventsOn('sites-synced', (changed, err) => {
+    if (err) log('Auto sync: ' + err, true); else log(`Auto sync: ${changed} vhost change(s), Apache reloaded`);
+    loadSites();
+  });
+  window.runtime.EventsOn('log', (msg, isErr) => { log(msg, isErr); renderServices(); });
+  window.runtime.EventsOn('quickapp', line => { const p = $('qa-log'); p.hidden = false; p.textContent += line + '\n'; p.scrollTop = p.scrollHeight; });
+  $('tabs').addEventListener('click', e => { if (e.target.dataset.tab === 'db') loadDBs(); });
+});
+</script>
+</body>
+</html>
