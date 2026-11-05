@@ -83,6 +83,9 @@ var includeLine = regexp.MustCompile(`(?m)^IncludeOptional\s+"?[^"\r\n]*devpanel
 
 // ensureApacheInclude adds the devpanel-php.conf include to httpd.conf once, after the fcgid include.
 func (a *App) ensureApacheInclude() error {
+	if a.isAdopted("apache") { // another environment's httpd.conf is never edited; our -f config includes it
+		return nil
+	}
 	f := filepath.Join(a.svcDir("apache"), `conf\httpd.conf`)
 	b, err := os.ReadFile(f)
 	if err != nil {
@@ -104,7 +107,10 @@ func (a *App) ensureApacheInclude() error {
 const poolSize = 3 // php-cgi processes per PHP version (each handles one request at a time)
 
 func (a *App) nginxConfPath() string { return a.path(`etc\nginx\devpanel-nginx.conf`) }
-func (a *App) phpPidsPath() string   { return a.path(`etc\nginx\devpanel-phpcgi.pids`) }
+
+// nginxPrefix holds Nginx's logs and temp files in DevPanel's own folder, never inside a linked install.
+func (a *App) nginxPrefix() string { return a.path(`data\nginx`) }
+func (a *App) phpPidsPath() string { return a.path(`etc\nginx\devpanel-phpcgi.pids`) }
 
 // phpPools maps each PHP version used by Nginx sites to its FastCGI ports.
 func (a *App) phpPools(list []Site) (versions []string, ports map[string][]int) {
@@ -288,15 +294,15 @@ func (a *App) startNginx() error {
 		return err
 	}
 	for _, d := range []string{"logs", `temp\client_body_temp`, `temp\proxy_temp`, `temp\fastcgi_temp`, `temp\uwsgi_temp`, `temp\scgi_temp`} {
-		os.MkdirAll(filepath.Join(nd, d), 0755)
+		os.MkdirAll(filepath.Join(a.nginxPrefix(), d), 0755)
 	}
-	if out, err := output(filepath.Join(nd, "nginx.exe"), "-t", "-p", nd, "-c", a.nginxConfPath()); err != nil || !strings.Contains(out, "successful") {
+	if out, err := output(filepath.Join(nd, "nginx.exe"), "-t", "-p", a.nginxPrefix(), "-c", a.nginxConfPath()); err != nil || !strings.Contains(out, "successful") {
 		return fmt.Errorf("nginx config test failed: %s", out)
 	}
 	if err := a.startPHPPools(list); err != nil {
 		return err
 	}
-	if err := spawn(filepath.Join(nd, "nginx.exe"), "-p", nd, "-c", a.nginxConfPath()); err != nil {
+	if err := spawn(filepath.Join(nd, "nginx.exe"), "-p", a.nginxPrefix(), "-c", a.nginxConfPath()); err != nil {
 		a.stopPHPPools()
 		return err
 	}
@@ -305,7 +311,7 @@ func (a *App) startNginx() error {
 
 func (a *App) stopNginx() {
 	nd := a.svcDir("nginx")
-	run(filepath.Join(nd, "nginx.exe"), "-p", nd, "-c", a.nginxConfPath(), "-s", "quit")
+	run(filepath.Join(nd, "nginx.exe"), "-p", a.nginxPrefix(), "-c", a.nginxConfPath(), "-s", "quit")
 	for end := time.Now().Add(5 * time.Second); time.Now().Before(end) && len(processesUnder(nd)) > 0; time.Sleep(200 * time.Millisecond) {
 	}
 	killUnder(nd)
@@ -320,7 +326,7 @@ func (a *App) restartWeb() error {
 		list, _ := a.sites()
 		nd := a.svcDir("nginx")
 		a.writeNginxConf(list)
-		if out, err := output(filepath.Join(nd, "nginx.exe"), "-t", "-p", nd, "-c", a.nginxConfPath()); err != nil || !strings.Contains(out, "successful") {
+		if out, err := output(filepath.Join(nd, "nginx.exe"), "-t", "-p", a.nginxPrefix(), "-c", a.nginxConfPath()); err != nil || !strings.Contains(out, "successful") {
 			errs = append(errs, fmt.Errorf("nginx config error, kept the running Nginx unchanged: %s", out))
 		} else {
 			a.stopNginx()

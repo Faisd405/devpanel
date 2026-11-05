@@ -14,7 +14,7 @@ func processesUnder(dir string) []uint32 {
 	if dir == "" {
 		return nil
 	}
-	prefix := strings.ToLower(filepath.Clean(dir)) + `\`
+	prefix := strings.ToLower(filepath.Clean(resolveDir(dir))) + `\` // linked installs run from the junction target
 	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
 		return nil
@@ -67,7 +67,7 @@ func anyUnder(paths []string, dir string) bool {
 	if dir == "" {
 		return false
 	}
-	prefix := strings.ToLower(filepath.Clean(dir)) + `\`
+	prefix := strings.ToLower(filepath.Clean(resolveDir(dir))) + `\` // linked installs run from the junction target
 	for _, p := range paths {
 		if strings.HasPrefix(p, prefix) {
 			return true

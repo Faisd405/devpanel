@@ -36,6 +36,10 @@ func TestSatisfies(t *testing.T) {
 }
 
 func reqApp(t *testing.T) (*App, string) {
+	// Unit tests must not see this PC's real Laragon/XAMPP/Herd installs.
+	orig := externalSources
+	t.Cleanup(func() { externalSources = orig })
+	externalSources = func() []extSource { return nil }
 	root := t.TempDir()
 	for _, d := range []string{`bin\php\php-8.4.5-nts-Win32-vs17-x64`, `bin\php\php-8.5.12-nts-Win32-vs17-x64`, `bin\nodejs\node-v22.12.0-win-x64`, `etc\apache2`, "usr"} {
 		os.MkdirAll(filepath.Join(root, d), 0755)

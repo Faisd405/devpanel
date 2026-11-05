@@ -140,11 +140,16 @@ func (a *App) SetPort(key string, p int) error {
 	if portOpen(p) {
 		return fmt.Errorf("port %d is in use by another program", p)
 	}
+	if a.isAdopted(svcName) && svcName != "apache" { // their config file: don't rewrite another environment's settings
+		return fmt.Errorf("%s is linked from %s; change its port there, or install a DevPanel copy", svcName, resolveDir(a.svcDir(svcName)))
+	}
 	d := a.svcDir(svcName)
 	var err error
 	switch key {
 	case "apache":
-		_, err = replaceInFile(filepath.Join(d, `conf\httpd.conf`), listenRe, "Listen "+strconv.Itoa(p))
+		if !a.isAdopted("apache") { // a linked Apache gets the port in DevPanel's own -f config at start
+			_, err = replaceInFile(filepath.Join(d, `conf\httpd.conf`), listenRe, "Listen "+strconv.Itoa(p))
+		}
 		if err == nil {
 			err = a.setDefaultVhostPort(false, p)
 		}

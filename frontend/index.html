@@ -257,6 +257,14 @@
           <span class="mut">Closing the window keeps DevPanel in the tray. Use the tray menu → Quit to exit.</span></div>
       </section>
       <section>
+        <h3>Other environments on this PC</h3>
+        <div class="inline" style="margin-bottom:8px">
+          <button class="primary" onclick="scanExternal()">Scan</button>
+          <span class="mut">Laragon, XAMPP, WampServer, Laravel Herd and FlyEnv. <b>Link</b> uses their PHP, databases and services as they are: nothing is copied or moved, their config files are not changed.</span>
+        </div>
+        <div id="external"></div>
+      </section>
+      <section>
         <h3>Projects, mail &amp; terminal</h3>
         <div class="inline" style="margin-bottom:10px">
           <span class="mut" style="width:120px">Projects folder</span>
@@ -411,7 +419,9 @@ const ID = {
   'Enable': 'Aktifkan', 'Disable': 'Nonaktifkan', 'Download & enable': 'Unduh & aktifkan', 'enabled': 'aktif', 'installed, off': 'terpasang, nonaktif',
   'Install it from the Install tab, then pick it in Environment.': 'Instal dari tab Instal, lalu pilih di Lingkungan.',
   'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
-  'Proxy to': 'Proxy ke', 'proxy': 'proxy', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
+  'Proxy to': 'Proxy ke', 'proxy': 'proxy',
+  'Other environments on this PC': 'Environment lain di PC ini', 'Scan': 'Pindai', 'Link': 'Tautkan', 'Unlink': 'Lepas tautan', 'linked': 'tertaut',
+  'Use as projects folder': 'Pakai sebagai folder proyek', 'Projects': 'Proyek', 'No other environments found': 'Tidak ada environment lain', 'Scanning…': 'Memindai…', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
   'Web & App Servers': 'Web & App Server', 'Cache & Messaging': 'Cache & Antrean', 'Search': 'Pencarian',
   'AI': 'AI', 'Mail & Tools': 'Email & Alat', 'Languages & Runtimes': 'Bahasa & Runtime', 'Other': 'Lainnya',
   'Version': 'Versi', 'Active version': 'Versi aktif', 'Install another version': 'Instal versi lain', 'stop it to switch': 'hentikan dulu untuk ganti',
@@ -1147,6 +1157,33 @@ async function renderSettings() {
 function saveSettings() {
   act('Save settings', () => api().SaveSettings({ autostart: $('set-autostart').checked, autoSync: $('set-autosync').checked, startGroup: $('set-group').value, watchdog: $('set-watchdog').checked, notify: $('set-notify').checked }));
 }
+async function scanExternal() {
+  $('external').replaceChildren(el('<div class="empty">Scanning…</div>'));
+  let envs;
+  try { envs = await api().ExternalEnvironments(); } catch (e) { $('external').textContent = String(e); return; }
+  if (!envs.length) { $('external').replaceChildren(el('<div class="empty">No other environments found</div>')); return; }
+  $('external').replaceChildren(...envs.flatMap(e => {
+    const head = el(`<div class="cat" style="cursor:default"><span>${esc(e.name)}</span><span class="n">${esc(e.root || '')}</span></div>`);
+    const rows = e.items.map(it => {
+      const r = el(`<div class="row"><span class="w-label" style="width:120px">${esc(it.label)}</span>
+        <span class="grow ellipsis" title="${esc(it.dir)}">${esc(it.version || '?')} <span class="mut">${esc(it.dir)}</span></span>
+        ${it.linked ? '<span class="badge ok">linked</span><button class="ghost un">Unlink</button>' : '<button class="ln">Link</button>'}</div>`);
+      const ln = r.querySelector('.ln'), un = r.querySelector('.un');
+      if (ln) ln.onclick = () => act(`Link ${e.name} ${it.label}`, () => api().LinkExternal(it.service, it.dir)).then(scanExternal);
+      if (un) un.onclick = () => act(`Unlink ${it.linkName}`, () => api().UnlinkExternal(it.service, it.linkName)).then(scanExternal);
+      return r;
+    });
+    if (e.www) {
+      const w = el(`<div class="row"><span class="w-label" style="width:120px">Projects</span><span class="grow ellipsis mut">${esc(e.www)}</span><button>Use as projects folder</button></div>`);
+      w.querySelector('button').onclick = () => {
+        if (confirm(`Serve the projects in ${e.www} with DevPanel (as *.test sites)?`)) act(`Projects folder → ${e.www}`, () => api().UseExternalWWW(e.name));
+      };
+      rows.push(w);
+    }
+    return [head, ...rows];
+  }));
+}
+
 async function renderPorts() {
   const list = await api().Ports();
   if (document.querySelector('#ports :focus')) return;

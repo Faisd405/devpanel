@@ -297,7 +297,11 @@ func (a *App) UninstallVersion(tool, version, confirm string) error {
 	if version == active {
 		return errors.New("this is the selected version; switch to another one first")
 	}
-	return os.RemoveAll(filepath.Join(a.path(`bin\`+tool), version))
+	p := filepath.Join(a.path(`bin\`+tool), version)
+	if isLink(p) { // linked from XAMPP/Herd/...: remove the junction only, never the other environment's files
+		return os.Remove(p)
+	}
+	return os.RemoveAll(p)
 }
 
 // ---- Export / import config (#24) ----

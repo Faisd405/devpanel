@@ -222,6 +222,9 @@ func (a *App) ensureApacheModules() error {
 	if _, err := writeIfChanged(conf, apacheModulesConf); err != nil {
 		return err
 	}
+	if a.isAdopted("apache") { // another environment's httpd.conf is never edited; our -f config includes it
+		return nil
+	}
 	f := filepath.Join(a.svcDir("apache"), `conf\httpd.conf`)
 	b, err := os.ReadFile(f)
 	if err != nil || strings.Contains(string(b), "devpanel-modules.conf") {

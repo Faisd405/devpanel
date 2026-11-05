@@ -22,6 +22,7 @@ const mcpInstructions = "DevPanel manages the local web stack on this Windows PC
 	"Setting up a project: read its requirements (composer.json require.php, package.json engines, .env DB_CONNECTION, " +
 	"queue/Vite needs). For EVERY runtime or service it needs, call check_requirement first. " +
 	"If an installed version fits, use it (set_site_php for PHP per project, set_version for services, enable_service). " +
+	"Versions installed by XAMPP, Laragon, WampServer, Herd or FlyEnv count too: see list_external_environments and link_external. " +
 	"Only if nothing installed fits: tell the user which version you suggest and why, ask them, and only after they agree call install. " +
 	"DevPanel additionally shows the user a confirmation dialog for every install. Never install just to get a newer version. " +
 	"Then: create_database, edit .env yourself, save_process for queue workers / npm run dev, set_site_proxy for dev servers, sync_vhosts."
@@ -75,6 +76,9 @@ var mcpTools = []mcpTool{
 	{Name: "set_site_proxy", Description: "Forward a site to a local dev server (e.g. 127.0.0.1:5173 for Vite, :3000 for Node); empty target = serve files/PHP again.", Props: map[string]string{"folder": "site folder in www", "target": "http://127.0.0.1:PORT or empty"}, Required: []string{"folder", "target"}, Method: "SetSiteProxy", Args: []string{"folder", "target"}},
 	{Name: "set_hostname", Description: "Set a site's hostname (e.g. shop or shop.test); empty = default name.", Props: map[string]string{"folder": "site folder in www", "hostname": "new hostname or empty"}, Required: []string{"folder", "hostname"}, Method: "SetHostname", Args: []string{"folder", "hostname"}},
 	{Name: "set_xdebug", Description: "Enable or disable Xdebug for the selected PHP (downloads the matching DLL when enabling).", Props: map[string]string{"enabled": "true to enable"}, Bools: []string{"enabled"}, Required: []string{"enabled"}, Method: "SetXdebug", Args: []string{"enabled"}},
+	{Name: "list_external_environments", Description: "Other dev environments on this PC (Laragon, XAMPP, WampServer, Laravel Herd, FlyEnv) and the PHP/services/runtimes they have. Prefer linking these over installing.", Method: "ExternalEnvironments"},
+	{Name: "link_external", Description: "Make an install from another environment usable in DevPanel (a folder link: nothing is copied, its files are not changed). Use the service and dir from list_external_environments.",
+		Props: map[string]string{"service": "service or runtime, e.g. php, mysql, apache", "dir": "the install folder as listed"}, Required: []string{"service", "dir"}, Method: "LinkExternal", Args: []string{"service", "dir"}},
 	{Name: "set_mail_catch", Description: "Send PHP mail() of all PHP versions to Mailpit (enabled=true) or back to default.", Props: map[string]string{"enabled": "true to catch mail"}, Bools: []string{"enabled"}, Required: []string{"enabled"}, Method: "SetMailCatch", Args: []string{"enabled"}},
 }
 

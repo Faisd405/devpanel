@@ -213,6 +213,16 @@ func (a *App) ensureApacheConfig(dir string) error {
 			return err
 		}
 	}
+	return a.ensureApacheSupport()
+}
+
+// ensureApacheSupport writes the files DevPanel's Apache config includes (SSL, default vhost, PHP handler)
+// when missing. Used for DevPanel's own Apache and for one linked from another environment.
+func (a *App) ensureApacheSupport() error {
+	fwd := filepath.ToSlash
+	_, _, crt, key := a.sslFiles()
+	vals := map[string]string{"PORT": strconv.Itoa(port("apache")), "SSLPORT": strconv.Itoa(port("apache_ssl")),
+		"WWW": fwd(a.www()), "CERT": fwd(crt), "KEY": fwd(key)}
 	a.ensureLayout()
 	if !exists(a.path(`etc\apache2\httpd-ssl.conf`)) {
 		os.WriteFile(a.path(`etc\apache2\httpd-ssl.conf`), []byte(fillTpl(standaloneSSLConf, vals)), 0644)

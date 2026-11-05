@@ -538,7 +538,8 @@ func (a *App) postInstall(group, dest string) error {
 	case `bin\apache`:
 		// Reuse the current httpd.conf (Laragon includes, fcgid, SSL) with the new ServerRoot.
 		cur := a.svcDir("apache")
-		if b, err := os.ReadFile(filepath.Join(cur, `conf\httpd.conf`)); err == nil && cur != dest {
+		// (not from a linked XAMPP/Herd Apache: its httpd.conf belongs to that environment)
+		if b, err := os.ReadFile(filepath.Join(cur, `conf\httpd.conf`)); err == nil && cur != dest && !isLink(cur) {
 			conf := strings.ReplaceAll(string(b), filepath.ToSlash(cur), filepath.ToSlash(dest))
 			if err := os.WriteFile(filepath.Join(dest, `conf\httpd.conf`), []byte(conf), 0644); err != nil {
 				return err

@@ -163,6 +163,30 @@ type Requirement struct {
 	SuggestVersion string         `json:"suggestVersion,omitempty"` // its version
 	Candidates     []string       `json:"candidates"`               // all catalog packages that fit
 	Advice         string         `json:"advice"`                   // what to do next, for the AI
+	External       []ExternalFit  `json:"external,omitempty"`       // fitting installs in other environments
+}
+
+type ExternalFit struct {
+	Env      string `json:"env"`
+	Dir      string `json:"dir"`
+	Version  string `json:"version"`
+	LinkName string `json:"linkName"`
+}
+
+// externalFits lists not-yet-linked installs in other environments (XAMPP, Herd, ...) that satisfy constraint.
+func (a *App) externalFits(name, constraint string) []ExternalFit {
+	var out []ExternalFit
+	for _, e := range a.ExternalEnvironments() {
+		for _, it := range e.Items {
+			if it.Service != name || it.Linked || it.Version == "" {
+				continue
+			}
+			if v, _, ok := parseVer(it.Version); ok && satisfies(v, constraint) {
+				out = append(out, ExternalFit{e.Name, it.Dir, it.Version, it.LinkName})
+			}
+		}
+	}
+	return out
 }
 
 func (a *App) activeFolder(name string) string {
@@ -219,7 +243,10 @@ func (a *App) CheckRequirement(name, constraint string) (Requirement, error) {
 			r.SuggestVersion = verString(v)
 		}
 	}
-	if r.UseInstalled != "" { // something installed fits: no install suggestion
+	if r.UseInstalled == "" { // nothing in DevPanel fits: maybe XAMPP/Laragon/Herd/FlyEnv already has it
+		r.External = a.externalFits(name, constraint)
+	}
+	if r.UseInstalled != "" || len(r.External) > 0 { // something already on this PC fits: no install suggestion
 		r.Suggestion, r.SuggestVersion = "", ""
 	}
 	switch {
@@ -229,6 +256,10 @@ func (a *App) CheckRequirement(name, constraint string) (Requirement, error) {
 		r.Advice = "Use the installed " + r.UseInstalled + ": call set_site_php for the project (no install needed)."
 	case r.UseInstalled != "":
 		r.Advice = "Use the installed " + r.UseInstalled + ": call set_version (stop the service first). No install needed."
+	case len(r.External) > 0:
+		e := r.External[0]
+		r.Advice = fmt.Sprintf("%s already has %s %s at %s: call link_external (service=%s, dir=%s), then select %s with %s. No install needed.",
+			e.Env, serviceLabel(name), e.Version, e.Dir, name, e.Dir, e.LinkName, map[bool]string{true: "set_site_php", false: "set_version"}[name == "php"])
 	case r.Suggestion != "":
 		r.Advice = "Nothing installed fits " + constraint + ". Ask the user before installing; suggest " + r.Suggestion +
 			" (" + r.SuggestVersion + ") and explain why. Only after they agree, call install with package=" + r.Suggestion + "."
@@ -258,6 +289,9 @@ func (a *App) InstallChecked(name, pkg, constraint, reason string) (string, erro
 	}
 	if req.UseInstalled != "" {
 		return "", fmt.Errorf("not installed: %s is already installed and fits %q. %s", req.UseInstalled, constraint, req.Advice)
+	}
+	if len(req.External) > 0 {
+		return "", fmt.Errorf("not installed: a fitting version exists in %s. %s", req.External[0].Env, req.Advice)
 	}
 	if pkg == "" {
 		pkg = req.Suggestion

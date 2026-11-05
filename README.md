@@ -4,8 +4,10 @@ A local web development stack manager for Windows, in the spirit of Laragon, Lar
 start/stop services, `*.test` sites with trusted HTTPS, PHP per site, one-click installs of PHP, databases
 and runtimes, and an MCP server so AI coding tools can set up a project for you.
 
-It runs **on top of an existing Laragon folder** (using its PHP, services and projects) **or standalone**
-in its own folder, from an installer or as a portable app.
+It is made for people who **don't want to move their environment again**: it runs on top of an existing
+Laragon folder, or standalone and **links what XAMPP, WampServer, Laravel Herd, FlyEnv or Laragon already
+installed** (PHP versions, MySQL/MariaDB, PostgreSQL, Apache, Nginx, Redis, Node, ...), using their binaries,
+databases and projects as they are. Installer or portable.
 
 > Status: v1.0.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
 > (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
@@ -44,7 +46,7 @@ dump/restore all for PostgreSQL major upgrades.
 **Install**: Laragon's `packages.conf` when present, built-in catalog, extra sources, update check
 for PHP/Node with SHA-256 verification, `.zip`/`.tar.xz`/`.7z` (via Windows' own `tar.exe`).
 
-**AI (MCP)**: `devpanel.exe mcp` exposes 31 tools (status, start/stop, sites, PHP per site, databases,
+**AI (MCP)**: `devpanel.exe mcp` exposes 33 tools (status, start/stop, sites, PHP per site, databases,
 processes, requirements check, installs, ...). See [MCP](#mcp-for-ai-coding-tools).
 
 Also: tray icon, start with Windows, CLI, export/import settings, light/dark theme, English / Bahasa Indonesia UI.
@@ -71,6 +73,31 @@ and installed services (`bin`) are **kept**.
 | any other folder, e.g. `C:\DevPanel\` | Standalone | its own `bin`, `www`, `data`, `etc`, `backup` next to the exe; it writes its own Apache/Nginx/Caddy config |
 
 Don't run Laragon and DevPanel at the same time on the same folder: both would manage the same services.
+
+### Use what you already have (XAMPP, Herd, FlyEnv, WampServer, Laragon)
+
+**Settings → Other environments on this PC → Scan** finds their installs by their binaries:
+
+| Environment | Looked up in |
+|---|---|
+| Laragon | `C:\laragon\bin` (projects `C:\laragon\www`) |
+| XAMPP | `C:\xampp` (projects `htdocs`) |
+| WampServer | `C:\wamp64\bin`, `C:\wamp\bin` (projects `www`) |
+| Laravel Herd | `%USERPROFILE%\.config\herd\bin` (projects `%USERPROFILE%\Herd`) |
+| FlyEnv | its data folder `app` (`%APPDATA%\FlyEnv`, portable `FlyEnv-Data`) and extra binary folders it knows |
+
+**Link** creates a folder link (junction) under DevPanel's `bin\<service>\`: nothing is copied or moved,
+and their files stay theirs. A linked Apache runs with DevPanel's own config (`httpd -f`), so e.g. XAMPP's
+`httpd.conf` is never edited; Nginx/Caddy always use DevPanel's config and log folders; a linked MySQL or
+PostgreSQL keeps its existing data folder and databases. **Use as projects folder** serves e.g. XAMPP's
+`htdocs` or `~/Herd` as `*.test` sites. Unlinking removes only the link.
+
+Notes: PHP settings and extensions changed in DevPanel are written to that PHP's own `php.ini`, so the
+other tool sees them too. Ports of linked databases are changed in the other tool. Don't run the other
+tool's control panel and DevPanel on the same services at the same time.
+
+The AI tools follow the same rule: `check_requirement` also looks at these environments and suggests
+`link_external` before any install.
 
 ### First steps (standalone)
 1. Open DevPanel → **Services → ⚙ Manage services**, tick and **Install** what you need (e.g. Apache, PostgreSQL, Redis).

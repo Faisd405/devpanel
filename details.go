@@ -53,7 +53,7 @@ func ref(label, path string, log bool) FileRef {
 var datadirRe = regexp.MustCompile(`(?m)^\s*datadir\s*=\s*"?([^"\r\n]+?)"?\s*$`)
 
 func (a *App) mysqlData(dir string) string {
-	if b, err := os.ReadFile(filepath.Join(dir, "my.ini")); err == nil {
+	if b, err := os.ReadFile(findMyIni(dir)); err == nil {
 		if m := datadirRe.FindSubmatch(b); m != nil {
 			return filepath.Clean(string(m[1]))
 		}
@@ -88,14 +88,19 @@ func (a *App) Detail(name string) (Detail, error) {
 	switch name {
 	case "apache":
 		d.Info = append(d.Info, [2]string{"Ports", fmt.Sprintf("%d (http), %d (https)", port("apache"), port("apache_ssl"))}, [2]string{"PHP", a.CurrentPHP() + " via mod_fcgid"})
+		conf, logs := filepath.Join(dir, `conf\httpd.conf`), filepath.Join(dir, "logs")
+		if a.isAdopted("apache") { // linked: DevPanel's own config and logs, the other environment's are not used
+			conf, logs = a.adoptedApacheConf(), a.path(`data\apache`)
+			d.Info = append(d.Info, [2]string{"Linked from", resolveDir(dir) + " (its httpd.conf is not used or changed)"})
+		}
 		d.Files = []FileRef{
-			ref("httpd.conf", filepath.Join(dir, `conf\httpd.conf`), false),
+			ref("httpd.conf", conf, false),
 			ref("httpd-ssl.conf", a.path(`etc\apache2\httpd-ssl.conf`), false),
 			ref("fcgid.conf (PHP handler)", a.path(`etc\apache2\fcgid.conf`), false),
-			ref("error.log", filepath.Join(dir, `logs\error.log`), true),
-			ref("access.log", filepath.Join(dir, `logs\access.log`), true),
+			ref("error.log", filepath.Join(logs, "error.log"), true),
+			ref("access.log", filepath.Join(logs, "access.log"), true),
 		}
-		d.Folders = []FileRef{ref("sites-enabled (vhosts)", a.path(`etc\apache2\sites-enabled`), false), ref("alias", a.path(`etc\apache2\alias`), false), ref("logs", filepath.Join(dir, "logs"), false)}
+		d.Folders = []FileRef{ref("sites-enabled (vhosts)", a.path(`etc\apache2\sites-enabled`), false), ref("alias", a.path(`etc\apache2\alias`), false), ref("logs", logs, false)}
 		d.Tools = []Tool{{"test", "Test config (httpd -t)", ""}, {"vhosts", "List vhosts (httpd -S)", ""}, {"", "Open http://localhost", fmt.Sprintf("http://localhost:%d", port("apache"))}}
 	case "nginx":
 		d.Info = append(d.Info, [2]string{"Ports", fmt.Sprintf("%d (http), %d (https)", port("nginx"), port("nginx_ssl"))},
@@ -103,10 +108,10 @@ func (a *App) Detail(name string) (Detail, error) {
 			[2]string{"Note", "Uses the same port as Apache: run one of them (pick in a group)"})
 		d.Files = []FileRef{
 			ref("devpanel-nginx.conf (generated)", a.nginxConfPath(), true),
-			ref("error.log", filepath.Join(dir, `logs\error.log`), true),
-			ref("access.log", filepath.Join(dir, `logs\access.log`), true),
+			ref("error.log", filepath.Join(a.nginxPrefix(), `logs\error.log`), true),
+			ref("access.log", filepath.Join(a.nginxPrefix(), `logs\access.log`), true),
 		}
-		d.Folders = []FileRef{ref("Nginx folder", dir, false), ref("logs", filepath.Join(dir, "logs"), false)}
+		d.Folders = []FileRef{ref("Nginx folder", dir, false), ref("logs", filepath.Join(a.nginxPrefix(), "logs"), false)}
 		d.Tools = []Tool{{"test", "Test config (nginx -t)", ""}, {"", "Open http://localhost", fmt.Sprintf("http://localhost:%d", port("nginx"))}}
 	case "php":
 		d.Info = append(d.Info, [2]string{"Used by", "Apache (fcgid), Nginx (php-cgi pool) and CLI terminal"})
@@ -126,7 +131,7 @@ func (a *App) Detail(name string) (Detail, error) {
 	case "mysql":
 		data := a.mysqlData(dir)
 		d.Info = append(d.Info, [2]string{"Data", data}, [2]string{"User", "root"})
-		d.Files = []FileRef{ref("my.ini", filepath.Join(dir, "my.ini"), false)}
+		d.Files = []FileRef{ref("my.ini", findMyIni(dir), false)}
 		if errs, _ := filepath.Glob(filepath.Join(data, "*.err")); len(errs) > 0 {
 			d.Files = append(d.Files, ref("error log", errs[0], true))
 		}
@@ -274,16 +279,16 @@ func (a *App) RunTool(name, id string) (string, error) {
 	}
 	switch name + "/" + id {
 	case "apache/test":
-		return output(filepath.Join(dir, `bin\httpd.exe`), "-t")
+		return output(filepath.Join(dir, `bin\httpd.exe`), append(a.apacheArgs(), "-t")...)
 	case "ollama/models":
 		cmd := hidden(exec.Command(filepath.Join(dir, "ollama.exe"), "list"))
 		cmd.Env = append(os.Environ(), fmt.Sprintf("OLLAMA_HOST=127.0.0.1:%d", port("ollama")))
 		out, _ := cmd.CombinedOutput()
 		return strings.TrimSpace(string(out)), nil
 	case "nginx/test":
-		return output(filepath.Join(dir, "nginx.exe"), "-t", "-p", dir, "-c", a.nginxConfPath())
+		return output(filepath.Join(dir, "nginx.exe"), "-t", "-p", a.nginxPrefix(), "-c", a.nginxConfPath())
 	case "apache/vhosts":
-		return output(filepath.Join(dir, `bin\httpd.exe`), "-S")
+		return output(filepath.Join(dir, `bin\httpd.exe`), append(a.apacheArgs(), "-S")...)
 	case "php/version":
 		return output(filepath.Join(dir, "php.exe"), "-v")
 	case "php/modules":

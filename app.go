@@ -213,7 +213,27 @@ func (a *App) pgDataFor(folder string) string {
 	return a.path(`data\` + folder)
 }
 
-func (a *App) pgData() string { return a.pgDataFor(filepath.Base(a.svcDir("postgresql"))) }
+func (a *App) pgData() string {
+	if d := a.svcDir("postgresql"); d != "" && isLink(d) {
+		if data := linkedPgData(realPath(d)); data != "" { // keep using the other environment's databases
+			return data
+		}
+	}
+	return a.pgDataFor(filepath.Base(a.svcDir("postgresql")))
+}
+
+// linkedPgData finds the existing cluster of a PostgreSQL linked from another environment:
+// next to the binaries (…\data) or Laragon-style (<root>\bin\postgresql\<v> -> <root>\data\postgresql or \<v>).
+func linkedPgData(real string) string {
+	folder := filepath.Base(real)
+	root := filepath.Dir(filepath.Dir(filepath.Dir(real))) // <root>\bin\postgresql\<folder> -> <root>
+	for _, c := range []string{filepath.Join(real, "data"), filepath.Join(root, "data", folder), filepath.Join(root, `data\postgresql`)} {
+		if exists(filepath.Join(c, "PG_VERSION")) {
+			return c
+		}
+	}
+	return ""
+}
 
 func (a *App) SetVersion(name, v string) error {
 	a.mu.Lock()
@@ -307,16 +327,32 @@ func (a *App) start(name string) error {
 	case "nginx":
 		err = a.startNginx()
 	case "apache":
-		if err = a.ensureApacheConfig(d); err == nil { // standalone: own httpd.conf, fcgid, SSL files
+		if a.isAdopted("apache") { // linked from XAMPP/Herd/...: run with DevPanel's own config, theirs untouched
+			if err = a.ensureApacheSupport(); err == nil { // SSL, default vhost, PHP handler: DevPanel's own files
+				err = a.writeAdoptedApacheConf(d)
+			}
+			if err == nil {
+				err = spawn(filepath.Join(d, `bin\httpd.exe`), a.apacheArgs()...)
+			}
+		} else if err = a.ensureApacheConfig(d); err == nil { // standalone: own httpd.conf, fcgid, SSL files
 			a.ensureApacheInclude()
 			err = spawn(filepath.Join(d, `bin\httpd.exe`))
 		}
 	case "postgresql":
+		if !exists(filepath.Join(a.pgData(), "PG_VERSION")) { // e.g. a linked PostgreSQL without a data folder: new empty cluster
+			if err = run(filepath.Join(d, `bin\initdb.exe`), "-D", a.pgData(), "-U", "postgres", "-A", "trust", "-E", "UTF8"); err != nil {
+				return fmt.Errorf("postgresql: initdb: %w", err)
+			}
+		}
 		err = run(filepath.Join(d, `bin\pg_ctl.exe`), "start", "-D", a.pgData(), "-l", filepath.Join(a.pgData(), "devpanel.log"))
 	case "mysql":
-		err = spawn(filepath.Join(d, `bin\mysqld.exe`), "--defaults-file="+filepath.Join(d, "my.ini"))
+		err = spawn(filepath.Join(d, `bin\mysqld.exe`), "--defaults-file="+findMyIni(d))
 	case "redis":
-		err = spawn(filepath.Join(d, "redis-server.exe"), filepath.Join(d, "redis.windows.conf"))
+		if conf := filepath.Join(d, "redis.windows.conf"); exists(conf) {
+			err = spawn(filepath.Join(d, "redis-server.exe"), conf)
+		} else { // some builds ship without a conf: defaults + our port
+			err = spawn(filepath.Join(d, "redis-server.exe"), "--port", strconv.Itoa(port("redis")), "--bind", "127.0.0.1")
+		}
 	case "memcached":
 		exe := findExe(d, "memcached.exe")
 		if exe == "" {
@@ -518,7 +554,7 @@ func (a *App) restartApache() error {
 		return fmt.Errorf("apache: port %d belongs to another program; restart it yourself to apply changes", port("apache"))
 	}
 	// Check the new config first: a broken vhost/template must not take the running Apache down.
-	if out, err := output(filepath.Join(a.svcDir("apache"), `bin\httpd.exe`), "-t"); err != nil || !strings.Contains(out, "Syntax OK") {
+	if out, err := output(filepath.Join(a.svcDir("apache"), `bin\httpd.exe`), append(a.apacheArgs(), "-t")...); err != nil || !strings.Contains(out, "Syntax OK") {
 		return fmt.Errorf("apache config error, kept the running Apache unchanged: %s", out)
 	}
 	if err := a.stop("apache"); err != nil {
