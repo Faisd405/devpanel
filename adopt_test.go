@@ -91,9 +91,58 @@ func TestExternalScanAndLink(t *testing.T) {
 	if a.UnlinkExternal("php", "..") == nil {
 		t.Fatal("bad link name accepted")
 	}
-	// UseExternalWWW: XAMPP's htdocs becomes the projects folder.
-	if err := a.UseExternalWWW("XAMPP"); err != nil || a.www() != filepath.Join(xampp, "htdocs") {
-		t.Fatalf("UseExternalWWW: %v %s", err, a.www())
+	// UseExternalWWW: XAMPP's htdocs is served next to DevPanel's own www.
+	own := a.www()
+	if err := a.UseExternalWWW("XAMPP"); err != nil || a.www() != own || !slices.Equal(a.ExtraWWW(), []string{filepath.Join(xampp, "htdocs")}) {
+		t.Fatalf("UseExternalWWW: %v %v", err, a.ExtraWWW())
+	}
+}
+
+// Several projects folders at once: sites from all, the main one wins a name clash, per-site lookups follow.
+func TestExtraWWW(t *testing.T) {
+	a, _ := standaloneApp(t)
+	os.MkdirAll(a.www(), 0755)
+	extra := t.TempDir()
+	touch(t, filepath.Join(a.www(), `shop\index.php`))
+	touch(t, filepath.Join(extra, `shop\index.php`)) // clash: main wins
+	touch(t, filepath.Join(extra, `blog\public\index.php`))
+	if err := a.AddWWW(extra); err != nil {
+		t.Fatal(err)
+	}
+	if a.AddWWW(extra) == nil || a.AddWWW("relative") == nil {
+		t.Fatal("duplicate / relative folder accepted")
+	}
+	list, err := a.sites()
+	if err != nil || len(list) != 2 {
+		t.Fatalf("sites: %v %+v", err, list)
+	}
+	for _, s := range list {
+		want := map[string]string{"shop": filepath.Join(a.www(), "shop"), "blog": filepath.Join(extra, `blog\public`)}[s.Folder]
+		if s.Root != want {
+			t.Errorf("%s root %s, want %s", s.Folder, s.Root, want)
+		}
+	}
+	if d, _ := a.siteDir("blog"); d != filepath.Join(extra, "blog") {
+		t.Fatalf("siteDir blog = %s", d)
+	}
+	a.cfg.Hostnames = map[string]string{}
+	if err := a.SetHostname("blog", "myblog.test"); err != nil {
+		t.Fatal(err)
+	}
+	// rename stays in the folder the project lives in
+	if _, err := a.RenameProject("blog", "blog2"); (err != nil && !strings.Contains(err.Error(), "apache")) || !exists(filepath.Join(extra, "blog2")) {
+		t.Fatalf("rename: %v", err)
+	}
+	if _, err := a.RenameProject("blog2", "shop"); err == nil {
+		t.Fatal("rename onto a name used in another projects folder")
+	}
+	// a removed drive doesn't break the list
+	os.RemoveAll(extra)
+	if list, err := a.sites(); err != nil || len(list) != 1 {
+		t.Fatalf("missing extra folder: %v %d", err, len(list))
+	}
+	if a.RemoveWWW(extra) != nil || len(a.ExtraWWW()) != 0 {
+		t.Fatal("remove")
 	}
 }
 
@@ -135,6 +184,53 @@ func TestAdoptedServicesKeepTheirFiles(t *testing.T) {
 	}
 	if !exists(filepath.Join(xampp, `apache\bin\httpd.exe`)) {
 		t.Fatal("uninstalling a linked version deleted the other environment's files")
+	}
+}
+
+// A folder added by hand (XAMPP on another drive) is scanned, named, linkable and removable.
+func TestExternalPathManual(t *testing.T) {
+	xampp, _, _ := fakeEnvs(t)
+	a, _ := standaloneApp(t)
+	other := filepath.Join(t.TempDir(), "xampp")
+	touch(t, filepath.Join(other, "xampp-control.exe"))
+	touch(t, filepath.Join(other, `php\php-cgi.exe`))
+	touch(t, filepath.Join(other, `htdocs\index.php`))
+	if _, err := a.AddExternalPath(xampp); err == nil || !strings.Contains(err.Error(), "already scanned") {
+		t.Fatalf("default root added again: %v", err)
+	}
+	if _, err := a.AddExternalPath(t.TempDir()); err == nil {
+		t.Fatal("empty folder accepted")
+	}
+	if _, err := a.AddExternalPath(a.cfg.Root); err == nil {
+		t.Fatal("own folder accepted")
+	}
+	if _, err := a.AddExternalPath(`"` + other + `"`); err != nil {
+		t.Fatal(err)
+	}
+	var e *ExternalEnv
+	for _, x := range a.ExternalEnvironments() {
+		if x.Custom {
+			e = &x
+		}
+	}
+	if e == nil || !strings.HasPrefix(e.Name, "XAMPP (") || e.WWW != filepath.Join(other, "htdocs") || len(e.Items) != 1 {
+		t.Fatalf("custom env: %+v", e)
+	}
+	if e.Items[0].LinkName == "xampp-php" { // must differ from the default C:\xampp link name
+		t.Fatal("custom link name collides with the default XAMPP")
+	}
+	if _, err := a.LinkExternal("php", e.Items[0].Dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RemoveExternalPath(other); err == nil {
+		t.Fatal("removed a folder that still has linked installs")
+	}
+	a.UnlinkExternal("php", e.Items[0].LinkName)
+	if err := a.RemoveExternalPath(other); err != nil || len(a.cfg.ExternalPaths) != 0 {
+		t.Fatalf("remove: %v %v", err, a.cfg.ExternalPaths)
+	}
+	if hint := a.ExternalHint(); len(hint) == 0 || a.ExternalHint() != nil {
+		t.Fatal("hint must list the environments once")
 	}
 }
 

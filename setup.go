@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unsafe"
 
@@ -59,9 +60,21 @@ func pickFolder(initial string) string {
 
 // chooseInstallDir: next to Laragon (compatible mode) or standalone in C:\DevPanel (or a folder the user picks).
 func chooseInstallDir() (string, bool) {
+	// Other environments only need a hint: in either mode their installs can be linked later.
+	var others []string
+	for _, s := range externalSources() {
+		if s.name != "Laragon" && slices.ContainsFunc(s.roots, exists) {
+			others = append(others, s.name)
+		}
+	}
+	hint := ""
+	if len(others) > 0 {
+		hint = "\n\nAlso found: " + strings.Join(others, ", ") + ". After installing, link their PHP, databases and projects in " +
+			"Settings → Other environments on this PC (nothing is moved or changed)."
+	}
 	if exists(`C:\laragon\laragon.exe`) {
 		switch msgBox("Laragon was found in C:\\laragon.\n\nYes: install next to it (C:\\laragon\\devpanel) and use Laragon's PHP, services and projects.\n"+
-			"No: install standalone with its own folders.\nCancel: stop.", mbYesNoCancel|mbIconQuestion) {
+			"No: install standalone with its own folders (Laragon's installs can still be linked).\nCancel: stop."+hint, mbYesNoCancel|mbIconQuestion) {
 		case idYes:
 			return `C:\laragon\devpanel`, true
 		case idCancel:
@@ -70,7 +83,7 @@ func chooseInstallDir() (string, bool) {
 	}
 	def := `C:\DevPanel`
 	switch msgBox("Install DevPanel standalone to "+def+"?\n\nYes: install there.\nNo: choose another folder.\nCancel: stop.\n\n"+
-		"Use a path without spaces (Apache, PHP and others are happier that way).", mbYesNoCancel|mbIconQuestion) {
+		"Use a path without spaces (Apache, PHP and others are happier that way)."+hint, mbYesNoCancel|mbIconQuestion) {
 	case idYes:
 		return def, true
 	case idNo:

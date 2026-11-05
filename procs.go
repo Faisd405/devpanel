@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -83,7 +82,7 @@ func (a *App) SaveProcess(p Proc) error {
 	if strings.ContainsAny(p.Dir, `\/`) || p.Dir == ".." {
 		return errors.New("folder must be a project folder in www")
 	}
-	if st, err := os.Stat(filepath.Join(a.www(), p.Dir)); err != nil || !st.IsDir() {
+	if st, err := os.Stat(a.dirOf(p.Dir)); err != nil || !st.IsDir() {
 		return fmt.Errorf("no folder %q in www", p.Dir)
 	}
 	i := slices.IndexFunc(a.cfg.Procs, func(x Proc) bool { return x.Name == p.Name })
@@ -131,7 +130,7 @@ func (a *App) StartProcess(name string) error {
 	}
 	log := &ringLog{}
 	cmd := exec.Command("cmd", "/c", p.Cmd)
-	cmd.Dir = filepath.Join(a.www(), p.Dir)
+	cmd.Dir = a.dirOf(p.Dir)
 	cmd.Env = a.procEnv()
 	cmd.Stdout, cmd.Stderr = log, log
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}

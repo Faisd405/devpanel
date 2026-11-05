@@ -54,8 +54,14 @@ type Config struct {
 	SiteProxy   map[string]string   `json:"siteProxy"`   // reverse proxy target per site, e.g. http://127.0.0.1:3000
 	// Services ticked in "Manage services" (null = every installed one, like before).
 	Services []string `json:"services"`
-	WWW      string   `json:"www,omitempty"`      // projects folder, "" = <root>\www
-	Terminal string   `json:"terminal,omitempty"` // "cmd" (default) or "cmder"
+	WWW      string   `json:"www,omitempty"` // projects folder, "" = <root>\www
+	// Folders the user added to the environment scan (other installs outside the known places).
+	ExternalPaths []string `json:"externalPaths,omitempty"`
+	// More projects folders served next to WWW (e.g. XAMPP's htdocs, ~/Herd).
+	ExtraWWW []string `json:"extraWww,omitempty"`
+	// ExternalHinted: the first-run "other environments found" hint was shown.
+	ExternalHinted bool   `json:"externalHinted,omitempty"`
+	Terminal       string `json:"terminal,omitempty"` // "cmd" (default) or "cmder"
 	// Pinned folder per service under bin\<service>, so installing a newer version doesn't switch silently.
 	Versions map[string]string `json:"versions"`
 	// Rewrite rules for default hostnames, e.g. prefix "app_" -> "" makes app_webshop -> webshop.test.
@@ -635,20 +641,32 @@ func (a *App) Sites() SiteList {
 
 // sites lists www folders with their hostname. Errors if two folders map to the same hostname.
 func (a *App) sites() ([]Site, error) {
-	www := a.www()
-	entries, err := os.ReadDir(www)
-	if err != nil {
-		return nil, err
+	type entry struct{ www, name string }
+	var entries []entry
+	have := map[string]bool{}
+	for i, www := range a.wwwDirs() {
+		list, err := os.ReadDir(www)
+		if err != nil {
+			if i == 0 {
+				return nil, err
+			}
+			continue // an extra folder that is gone (e.g. removed drive)
+		}
+		for _, e := range list {
+			n := e.Name()
+			if !e.IsDir() || strings.HasPrefix(n, ".") || n == "node_modules" || have[strings.ToLower(n)] {
+				continue // same folder name in two projects folders: the first one wins (settings are keyed by name)
+			}
+			have[strings.ToLower(n)] = true
+			entries = append(entries, entry{www, n})
+		}
 	}
 	out := []Site{}
 	seen := map[string]string{}
 	var dup []string
 	for _, e := range entries {
-		n := e.Name()
-		if !e.IsDir() || strings.HasPrefix(n, ".") || n == "node_modules" {
-			continue
-		}
-		s := Site{Folder: n, Default: a.defaultHost(n), Root: filepath.Join(www, n)}
+		n := e.name
+		s := Site{Folder: n, Default: a.defaultHost(n), Root: filepath.Join(e.www, n)}
 		s.Host = s.Default
 		if h := a.cfg.Hostnames[n]; h != "" {
 			s.Host = h
@@ -687,7 +705,7 @@ func (a *App) sites() ([]Site, error) {
 func (a *App) SetHostname(folder, host string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if _, err := os.Stat(filepath.Join(a.www(), folder)); err != nil || strings.ContainsAny(folder, `\/`) {
+	if _, err := a.siteDir(folder); err != nil {
 		return fmt.Errorf("no folder %q in www", folder)
 	}
 	host = a.normHost(host)

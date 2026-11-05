@@ -49,6 +49,41 @@ func (a *App) SetWWW(dir string) error {
 	return a.saveConfig()
 }
 
+// wwwDirs: the main projects folder first, then the extra ones (e.g. XAMPP's htdocs next to Laragon's www).
+func (a *App) wwwDirs() []string { return append([]string{a.www()}, a.cfg.ExtraWWW...) }
+
+func (a *App) ExtraWWW() []string { return append([]string{}, a.cfg.ExtraWWW...) }
+
+// AddWWW serves the projects of another folder too; folders are matched by name, so the main one wins on a clash.
+func (a *App) AddWWW(dir string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	dir = strings.TrimSpace(strings.Trim(strings.TrimSpace(dir), `"`))
+	if !filepath.IsAbs(dir) {
+		return errors.New(`use a full path, e.g. C:\xampp\htdocs`)
+	}
+	dir = filepath.Clean(dir)
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return fmt.Errorf("folder %s does not exist", dir)
+	}
+	if slices.ContainsFunc(a.wwwDirs(), func(p string) bool { return strings.EqualFold(filepath.Clean(p), dir) }) {
+		return errors.New("already a projects folder")
+	}
+	a.cfg.ExtraWWW = append(a.cfg.ExtraWWW, dir)
+	if _, err := a.sites(); err != nil {
+		a.cfg.ExtraWWW = a.cfg.ExtraWWW[:len(a.cfg.ExtraWWW)-1]
+		return fmt.Errorf("projects in that folder clash: %w", err)
+	}
+	return a.saveConfig()
+}
+
+func (a *App) RemoveWWW(dir string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cfg.ExtraWWW = slices.DeleteFunc(a.cfg.ExtraWWW, func(p string) bool { return strings.EqualFold(p, dir) })
+	return a.saveConfig()
+}
+
 // ---- PHP mail() -> Mailpit ----
 
 // On Windows PHP's mail() talks SMTP directly (sendmail_path is ignored), so SMTP/smtp_port decide where it goes.
@@ -203,7 +238,10 @@ func (a *App) RenameProject(folder, newName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	to := filepath.Join(a.www(), newName)
+	to := filepath.Join(filepath.Dir(from), newName)
+	if d, _ := a.siteDir(newName); d != "" {
+		to = d
+	}
 	if exists(to) {
 		return "", fmt.Errorf("%s already exists", newName)
 	}

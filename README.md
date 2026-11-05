@@ -46,7 +46,7 @@ dump/restore all for PostgreSQL major upgrades.
 **Install**: Laragon's `packages.conf` when present, built-in catalog, extra sources, update check
 for PHP/Node with SHA-256 verification, `.zip`/`.tar.xz`/`.7z` (via Windows' own `tar.exe`).
 
-**AI (MCP)**: `devpanel.exe mcp` exposes 33 tools (status, start/stop, sites, PHP per site, databases,
+**AI (MCP)**: `devpanel.exe mcp` exposes 34 tools (status, start/stop, sites, PHP per site, databases,
 processes, requirements check, installs, ...). See [MCP](#mcp-for-ai-coding-tools).
 
 Also: tray icon, start with Windows, CLI, export/import settings, light/dark theme, English / Bahasa Indonesia UI.
@@ -89,8 +89,17 @@ Don't run Laragon and DevPanel at the same time on the same folder: both would m
 **Link** creates a folder link (junction) under DevPanel's `bin\<service>\`: nothing is copied or moved,
 and their files stay theirs. A linked Apache runs with DevPanel's own config (`httpd -f`), so e.g. XAMPP's
 `httpd.conf` is never edited; Nginx/Caddy always use DevPanel's config and log folders; a linked MySQL or
-PostgreSQL keeps its existing data folder and databases. **Use as projects folder** serves e.g. XAMPP's
+PostgreSQL keeps its existing data folder and databases. **Add as projects folder** also serves e.g. XAMPP's
 `htdocs` or `~/Herd` as `*.test` sites. Unlinking removes only the link.
+
+This works in both modes (standalone DevPanel can link Laragon's installs too), and several environments
+can be used at once, e.g. PHP from Herd, MySQL from XAMPP and Redis installed by DevPanel. Each service
+runs one selected version at a time. Projects can come from several folders at once (Settings → *Also serve*,
+e.g. `C:\laragon\www` + `C:\xampp\htdocs`); if two folders have a project with the same name, the main one is used.
+
+Installed somewhere else (e.g. `D:\xampp`, a portable Laragon)? Type the path or **Browse…** next to
+*Other folder* and **Add**: the folder is scanned the same way and its name guessed from its control panel
+exe. On first start DevPanel lists what it found and offers to open this list; the installer mentions them too.
 
 Notes: PHP settings and extensions changed in DevPanel are written to that PHP's own `php.ini`, so the
 other tool sees them too. Ports of linked databases are changed in the other tool. Don't run the other

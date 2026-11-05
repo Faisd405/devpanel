@@ -260,7 +260,13 @@
         <h3>Other environments on this PC</h3>
         <div class="inline" style="margin-bottom:8px">
           <button class="primary" onclick="scanExternal()">Scan</button>
-          <span class="mut">Laragon, XAMPP, WampServer, Laravel Herd and FlyEnv. <b>Link</b> uses their PHP, databases and services as they are: nothing is copied or moved, their config files are not changed.</span>
+          <span class="mut">Laragon, XAMPP, WampServer, Laravel Herd and FlyEnv. <b>Link</b> uses their PHP, databases and services as they are: nothing is copied or moved, their config files are not changed. Several environments can be linked at once.</span>
+        </div>
+        <div class="inline" style="margin-bottom:8px">
+          <span class="mut" style="width:120px">Other folder</span>
+          <input type="text" id="ext-path" class="grow" placeholder="e.g. D:\xampp or a portable Laragon">
+          <button onclick="pickExtPath()">Browse…</button>
+          <button onclick="addExtPath()">Add</button>
         </div>
         <div id="external"></div>
       </section>
@@ -271,6 +277,13 @@
           <input type="text" id="www" class="grow" placeholder="C:\laragon\www">
           <button onclick="act('Projects folder', () => api().SetWWW($('www').value.trim() === wwwDefault ? '' : $('www').value))">Save</button>
         </div>
+        <div class="inline" style="margin-bottom:6px">
+          <span class="mut" style="width:120px">Also serve</span>
+          <input type="text" id="www-extra" class="grow" placeholder="e.g. C:\xampp\htdocs">
+          <button onclick="pickExtraWWW()">Browse…</button>
+          <button onclick="addExtraWWW()">Add</button>
+        </div>
+        <div id="www-extras" style="margin-bottom:10px"></div>
         <label style="display:block;margin-bottom:10px"><input type="checkbox" id="mailcatch" onchange="act('PHP mail() to Mailpit', () => api().SetMailCatch(this.checked))"> Send PHP mail() to Mailpit (all PHP versions)</label>
         <div class="inline" style="margin-bottom:10px">
           <span class="mut" style="width:120px">Terminal</span>
@@ -421,7 +434,9 @@ const ID = {
   'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
   'Proxy to': 'Proxy ke', 'proxy': 'proxy',
   'Other environments on this PC': 'Environment lain di PC ini', 'Scan': 'Pindai', 'Link': 'Tautkan', 'Unlink': 'Lepas tautan', 'linked': 'tertaut',
-  'Use as projects folder': 'Pakai sebagai folder proyek', 'Projects': 'Proyek', 'No other environments found': 'Tidak ada environment lain', 'Scanning…': 'Memindai…', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
+  'Other folder': 'Folder lain', 'Browse…': 'Telusuri…', 'Add': 'Tambah', 'Remove': 'Hapus',
+  'Nothing found there (folder moved or drive removed?)': 'Tidak ada yang ditemukan (folder dipindah atau drive dilepas?)',
+  'Add as projects folder': 'Tambahkan sebagai folder proyek', 'Also serve': 'Sajikan juga', 'Projects': 'Proyek', 'No other environments found': 'Tidak ada environment lain', 'Scanning…': 'Memindai…', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
   'Web & App Servers': 'Web & App Server', 'Cache & Messaging': 'Cache & Antrean', 'Search': 'Pencarian',
   'AI': 'AI', 'Mail & Tools': 'Email & Alat', 'Languages & Runtimes': 'Bahasa & Runtime', 'Other': 'Lainnya',
   'Version': 'Versi', 'Active version': 'Versi aktif', 'Install another version': 'Instal versi lain', 'stop it to switch': 'hentikan dulu untuk ganti',
@@ -1135,7 +1150,7 @@ let wwwDefault = '';
 async function renderSettings() {
   const [st, groups, ssl, www, mail, term, tpls] = await Promise.all([api().Settings(), api().Groups(), api().SSL(), api().WWW(), api().MailCatch(), api().Terminal(), api().CustomTemplates()]);
   if (!document.querySelector('#tab-settings :focus')) {
-    $('www').value = www; $('mailcatch').checked = mail; $('term').value = term;
+    $('www').value = www; renderExtraWWW(); $('mailcatch').checked = mail; $('term').value = term;
   }
   $('tpl-state').textContent = Object.entries(tpls).filter(([, v]) => v).map(([k]) => k + ': custom').join(', ') || 'built-in';
   if (!document.querySelector('#tab-settings :focus')) {
@@ -1157,13 +1172,52 @@ async function renderSettings() {
 function saveSettings() {
   act('Save settings', () => api().SaveSettings({ autostart: $('set-autostart').checked, autoSync: $('set-autosync').checked, startGroup: $('set-group').value, watchdog: $('set-watchdog').checked, notify: $('set-notify').checked }));
 }
+async function renderExtraWWW() {
+  const list = await api().ExtraWWW();
+  $('www-extras').replaceChildren(...list.map(d => {
+    const r = el(`<div class="row"><span class="w-label" style="width:120px"></span><span class="grow ellipsis">${esc(d)}</span><button class="ghost">Remove</button></div>`);
+    r.querySelector('button').onclick = () => act(`Projects folder − ${d}`, () => api().RemoveWWW(d)).then(renderExtraWWW);
+    return r;
+  }));
+}
+async function pickExtraWWW() {
+  const d = await api().PickFolder('Projects folder to serve too');
+  if (d) { $('www-extra').value = d; addExtraWWW(); }
+}
+async function addExtraWWW() {
+  const d = $('www-extra').value.trim();
+  if (d && await act(`Projects folder + ${d}`, () => api().AddWWW(d))) $('www-extra').value = '';
+  renderExtraWWW();
+}
+async function pickExtPath() {
+  const d = await api().PickFolder('Folder of XAMPP, Laragon, WampServer, Herd, FlyEnv, or a PHP / database install');
+  if (d) { $('ext-path').value = d; addExtPath(); }
+}
+async function addExtPath() {
+  const d = $('ext-path').value.trim();
+  if (!d) return;
+  if (await act(`Add ${d}`, () => api().AddExternalPath(d))) $('ext-path').value = '';
+  scanExternal();
+}
+// First start: offer the installs other environments already have.
+async function externalHint() {
+  const envs = await api().ExternalHint();
+  if (!envs?.length) return;
+  const list = envs.map(e => `• ${e.name}: ` + [...new Set(e.items.map(i => i.label))].join(', ')).join('\n');
+  if (!confirm(`Found on this PC:\n${list}\n\nDevPanel can use them as they are (nothing is moved). Open the list to link them?`)) return;
+  document.querySelector('nav button[data-tab="settings"]').click();
+  await scanExternal();
+  $('external').scrollIntoView({ behavior: 'smooth' });
+}
 async function scanExternal() {
   $('external').replaceChildren(el('<div class="empty">Scanning…</div>'));
   let envs;
   try { envs = await api().ExternalEnvironments(); } catch (e) { $('external').textContent = String(e); return; }
   if (!envs.length) { $('external').replaceChildren(el('<div class="empty">No other environments found</div>')); return; }
   $('external').replaceChildren(...envs.flatMap(e => {
-    const head = el(`<div class="cat" style="cursor:default"><span>${esc(e.name)}</span><span class="n">${esc(e.root || '')}</span></div>`);
+    const head = el(`<div class="cat" style="cursor:default"><span>${esc(e.name)}</span><span class="n">${esc(e.root || '')}</span>${e.custom ? '<button class="ghost rm">Remove</button>' : ''}</div>`);
+    const rm = head.querySelector('.rm');
+    if (rm) rm.onclick = () => act(`Remove ${e.root}`, () => api().RemoveExternalPath(e.root)).then(scanExternal);
     const rows = e.items.map(it => {
       const r = el(`<div class="row"><span class="w-label" style="width:120px">${esc(it.label)}</span>
         <span class="grow ellipsis" title="${esc(it.dir)}">${esc(it.version || '?')} <span class="mut">${esc(it.dir)}</span></span>
@@ -1173,10 +1227,11 @@ async function scanExternal() {
       if (un) un.onclick = () => act(`Unlink ${it.linkName}`, () => api().UnlinkExternal(it.service, it.linkName)).then(scanExternal);
       return r;
     });
+    if (e.custom && !e.items.length && !e.www) rows.push(el('<div class="empty">Nothing found there (folder moved or drive removed?)</div>'));
     if (e.www) {
-      const w = el(`<div class="row"><span class="w-label" style="width:120px">Projects</span><span class="grow ellipsis mut">${esc(e.www)}</span><button>Use as projects folder</button></div>`);
+      const w = el(`<div class="row"><span class="w-label" style="width:120px">Projects</span><span class="grow ellipsis mut">${esc(e.www)}</span><button>Add as projects folder</button></div>`);
       w.querySelector('button').onclick = () => {
-        if (confirm(`Serve the projects in ${e.www} with DevPanel (as *.test sites)?`)) act(`Projects folder → ${e.www}`, () => api().UseExternalWWW(e.name));
+        if (confirm(`Serve the projects in ${e.www} with DevPanel (as *.test sites)?`)) act(`Projects folder + ${e.www}`, () => api().UseExternalWWW(e.name)).then(renderExtraWWW);
       };
       rows.push(w);
     }
@@ -1234,6 +1289,7 @@ window.addEventListener('load', async () => {
   const types = await api().PackageTypes();
   $('np-type').replaceChildren(new Option('Auto (from name)', ''), ...types.map(t => new Option(t, t)));
   await renderAll();
+  externalHint();
   window.runtime.EventsOn('progress', (name, done, total) => {
     const row = document.querySelector(`[data-pkg="${CSS.escape(name)}"]`);
     const p = (row && row.querySelector('progress')) || document.querySelector('#manage-list progress:not([hidden])');

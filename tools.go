@@ -56,8 +56,8 @@ func (a *App) CreateApp(kind, folder, engine string) (string, error) {
 		return "", errors.New("folder name: letters, digits, - and _ (max 63)")
 	}
 	dir := filepath.Join(a.www(), folder)
-	if exists(dir) {
-		return "", fmt.Errorf("www\\%s already exists", folder)
+	if d, err := a.siteDir(folder); err == nil {
+		return "", fmt.Errorf("%s already exists", d)
 	}
 	notes := []string{}
 	if engine == "sqlite" && kind == "wordpress" {

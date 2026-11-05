@@ -86,10 +86,11 @@ type ExternalItem struct {
 }
 
 type ExternalEnv struct {
-	Name  string         `json:"name"`
-	Root  string         `json:"root"`
-	WWW   string         `json:"www"` // its projects folder, if any
-	Items []ExternalItem `json:"items"`
+	Name   string         `json:"name"`
+	Root   string         `json:"root"`
+	WWW    string         `json:"www"` // its projects folder, if any
+	Items  []ExternalItem `json:"items"`
+	Custom bool           `json:"custom"` // a folder the user added (ExternalPaths)
 }
 
 // markers: which file proves an install, and the version folder relative to it.
@@ -198,13 +199,51 @@ var externalSources = func() []extSource {
 	}
 }
 
+// customSource scans a folder the user picked; its name is guessed from the control panel exe it contains.
+func customSource(dir string) extSource {
+	name := "Folder"
+	for exe, n := range map[string]string{"xampp-control.exe": "XAMPP", "laragon.exe": "Laragon", "wampmanager.exe": "WampServer", "FlyEnv.exe": "FlyEnv", "Herd.exe": "Laravel Herd"} {
+		if exists(filepath.Join(dir, exe)) {
+			name = n
+		}
+	}
+	www := ""
+	for _, w := range []string{"htdocs", "www"} {
+		if exists(filepath.Join(dir, w)) {
+			www = filepath.Join(dir, w)
+			break
+		}
+	}
+	// the tag carries the drive so C:\xampp and D:\xampp don't get the same link names
+	tag := strings.TrimSuffix(filepath.VolumeName(dir), ":") + "-" + filepath.Base(dir)
+	return extSource{name + " (" + dir + ")", linkSafe.ReplaceAllString(strings.ToLower(tag), "-"), www, []string{dir}, 5}
+}
+
+// knownRoot: dir is inside or around a place the default scan already covers.
+func knownRoot(dir string) string {
+	d := strings.ToLower(filepath.Clean(dir)) + `\`
+	for _, s := range externalSources() {
+		for _, r := range s.roots {
+			r := strings.ToLower(filepath.Clean(r)) + `\`
+			if exists(r) && (strings.HasPrefix(d, r) || strings.HasPrefix(r, d)) {
+				return s.name
+			}
+		}
+	}
+	return ""
+}
+
 // ExternalEnvironments finds other dev environments on this PC and what they have installed.
 func (a *App) ExternalEnvironments() []ExternalEnv {
 	sources := externalSources()
+	custom := len(sources)
+	for _, p := range slices.Clone(a.cfg.ExternalPaths) {
+		sources = append(sources, customSource(p))
+	}
 	ownBin := strings.ToLower(filepath.Clean(a.path("bin"))) + `\`
 	out := []ExternalEnv{}
-	for _, s := range sources {
-		env := ExternalEnv{Name: s.name, Items: []ExternalItem{}}
+	for i, s := range sources {
+		env := ExternalEnv{Name: s.name, Items: []ExternalItem{}, Custom: i >= custom}
 		if exists(s.www) {
 			env.WWW = s.www
 		}
@@ -230,7 +269,10 @@ func (a *App) ExternalEnvironments() []ExternalEnv {
 				}
 			}
 		}
-		if len(env.Items) > 0 || env.WWW != "" {
+		if env.Custom && env.Root == "" {
+			env.Root = s.roots[0] // added by the user but gone (e.g. a USB drive): still listed so it can be removed
+		}
+		if len(env.Items) > 0 || env.WWW != "" || env.Custom {
 			slices.SortFunc(env.Items, func(x, y ExternalItem) int { return strings.Compare(x.Service+x.Dir, y.Service+y.Dir) })
 			out = append(out, env)
 		}
@@ -295,11 +337,76 @@ func (a *App) UnlinkExternal(service, linkName string) error {
 	return os.Remove(p) // a junction: removes the link only
 }
 
-// UseExternalWWW makes another environment's projects folder DevPanel's www (e.g. XAMPP's htdocs, ~/Herd).
+// AddExternalPath adds a folder to the scan, e.g. XAMPP on D:\ or a portable Laragon.
+func (a *App) AddExternalPath(dir string) (string, error) {
+	dir = strings.Trim(strings.TrimSpace(dir), `"`)
+	if !filepath.IsAbs(dir) {
+		return "", errors.New(`use a full path, e.g. D:\xampp`)
+	}
+	dir = filepath.Clean(dir)
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return "", fmt.Errorf("folder %s does not exist", dir)
+	}
+	own, d := strings.ToLower(filepath.Clean(a.cfg.Root))+`\`, strings.ToLower(dir)+`\`
+	if strings.HasPrefix(d, own) || strings.HasPrefix(own, d) {
+		return "", errors.New("that is DevPanel's own folder")
+	}
+	if n := knownRoot(dir); n != "" {
+		return "", fmt.Errorf("%s is already scanned (%s)", dir, n)
+	}
+	if slices.ContainsFunc(a.cfg.ExternalPaths, func(p string) bool { return strings.EqualFold(p, dir) }) {
+		return "", errors.New("already added")
+	}
+	src := customSource(dir)
+	n := 0
+	for _, dirs := range scanInstalls(dir, src.depth) {
+		n += len(dirs)
+	}
+	if n == 0 && src.www == "" {
+		return "", fmt.Errorf("no PHP, web server, database or runtime found in %s", dir)
+	}
+	a.mu.Lock()
+	a.cfg.ExternalPaths = append(a.cfg.ExternalPaths, dir)
+	err := a.saveConfig()
+	a.mu.Unlock()
+	return fmt.Sprintf("%s: %d install(s) found", src.name, n), err
+}
+
+// RemoveExternalPath takes a folder off the scan; its linked installs must be unlinked first.
+func (a *App) RemoveExternalPath(dir string) error {
+	for _, e := range a.ExternalEnvironments() {
+		if e.Custom && strings.EqualFold(e.Root, dir) {
+			for _, it := range e.Items {
+				if it.Linked {
+					return fmt.Errorf("unlink %s first", it.LinkName)
+				}
+			}
+		}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cfg.ExternalPaths = slices.DeleteFunc(a.cfg.ExternalPaths, func(p string) bool { return strings.EqualFold(p, dir) })
+	return a.saveConfig()
+}
+
+// ExternalHint returns the other environments once (first start), so the window can offer to link them.
+func (a *App) ExternalHint() []ExternalEnv {
+	a.mu.Lock()
+	if a.cfg.ExternalHinted {
+		a.mu.Unlock()
+		return nil
+	}
+	a.cfg.ExternalHinted = true
+	a.saveConfig()
+	a.mu.Unlock()
+	return slices.DeleteFunc(a.ExternalEnvironments(), func(e ExternalEnv) bool { return len(e.Items) == 0 })
+}
+
+// UseExternalWWW serves another environment's projects folder too (e.g. XAMPP's htdocs, ~/Herd).
 func (a *App) UseExternalWWW(name string) error {
 	for _, e := range a.ExternalEnvironments() {
 		if e.Name == name && e.WWW != "" {
-			return a.SetWWW(e.WWW)
+			return a.AddWWW(e.WWW)
 		}
 	}
 	return fmt.Errorf("%s has no projects folder", name)

@@ -31,7 +31,7 @@ func allHosts(list []Site) []string {
 func (a *App) SetSiteOptions(folder, root string, aliases []string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	dir := filepath.Join(a.www(), folder)
+	dir, _ := a.siteDir(folder)
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() || strings.ContainsAny(folder, `\/`) {
 		return fmt.Errorf("no folder %q in www", folder)
 	}
@@ -128,7 +128,7 @@ func urlMatches(appURL, host string) bool { return urlHost(appURL) == host }
 
 func (a *App) enrich(list []Site) {
 	for i := range list {
-		dir := filepath.Join(a.www(), list[i].Folder)
+		dir, _ := a.siteDir(list[i].Folder)
 		list[i].Framework = detectFramework(dir)
 		list[i].AppURL = readAppURL(dir)
 		// Only flag APP_URLs pointing at a *local* .test name that isn't this site's (e.g. the old app_x.test).
@@ -165,7 +165,8 @@ func (a *App) FixAppURL(folder string) (string, error) {
 	if i < 0 {
 		return "", fmt.Errorf("no site %q", folder)
 	}
-	f := filepath.Join(a.www(), folder, ".env")
+	d, _ := a.siteDir(folder)
+	f := filepath.Join(d, ".env")
 	b, err := os.ReadFile(f)
 	if err != nil {
 		return "", errors.New("project has no .env")
@@ -182,11 +183,23 @@ func (a *App) FixAppURL(folder string) (string, error) {
 }
 
 func (a *App) siteDir(folder string) (string, error) {
-	d := filepath.Join(a.www(), folder)
-	if strings.ContainsAny(folder, `\/`) || folder == ".." || !exists(d) {
+	if folder == "" || strings.ContainsAny(folder, `\/`) || folder == ".." || folder == "." {
 		return "", fmt.Errorf("no folder %q in www", folder)
 	}
-	return d, nil
+	for _, w := range a.wwwDirs() {
+		if d := filepath.Join(w, folder); exists(d) {
+			return d, nil
+		}
+	}
+	return "", fmt.Errorf("no folder %q in the projects folders", folder)
+}
+
+// dirOf: a project's folder, or where it would be in the main www.
+func (a *App) dirOf(folder string) string {
+	if d, err := a.siteDir(folder); err == nil {
+		return d
+	}
+	return filepath.Join(a.www(), folder)
 }
 
 // OpenSite opens a project folder in VS Code, Explorer or a terminal with the selected environment.

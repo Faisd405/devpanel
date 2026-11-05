@@ -79,6 +79,8 @@ var mcpTools = []mcpTool{
 	{Name: "list_external_environments", Description: "Other dev environments on this PC (Laragon, XAMPP, WampServer, Laravel Herd, FlyEnv) and the PHP/services/runtimes they have. Prefer linking these over installing.", Method: "ExternalEnvironments"},
 	{Name: "link_external", Description: "Make an install from another environment usable in DevPanel (a folder link: nothing is copied, its files are not changed). Use the service and dir from list_external_environments.",
 		Props: map[string]string{"service": "service or runtime, e.g. php, mysql, apache", "dir": "the install folder as listed"}, Required: []string{"service", "dir"}, Method: "LinkExternal", Args: []string{"service", "dir"}},
+	{Name: "add_external_path", Description: "Add a folder to the environment scan when the user says their XAMPP/Laragon/PHP lives somewhere else (e.g. D:\\xampp). Then call list_external_environments.",
+		Props: map[string]string{"dir": "full folder path"}, Required: []string{"dir"}, Method: "AddExternalPath", Args: []string{"dir"}},
 	{Name: "set_mail_catch", Description: "Send PHP mail() of all PHP versions to Mailpit (enabled=true) or back to default.", Props: map[string]string{"enabled": "true to catch mail"}, Bools: []string{"enabled"}, Required: []string{"enabled"}, Method: "SetMailCatch", Args: []string{"enabled"}},
 }
 

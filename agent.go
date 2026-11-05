@@ -334,6 +334,13 @@ func raw(v interface{}) json.RawMessage { b, _ := json.Marshal(v); return b }
 // Call forwards a method to the agent. File dialogs need the window, so those run here.
 func (p *Proxy) Call(method string, args []json.RawMessage) (json.RawMessage, error) {
 	switch method {
+	case "PickFolder":
+		var title string
+		if len(args) > 0 {
+			json.Unmarshal(args[0], &title)
+		}
+		d, err := runtime.OpenDirectoryDialog(p.ctx, runtime.OpenDialogOptions{Title: title})
+		return raw(d), err
 	case "PickSQLFile":
 		dir, err := p.call("BackupFolder", args)
 		if err != nil {
