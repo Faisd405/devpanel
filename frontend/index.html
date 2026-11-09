@@ -104,7 +104,7 @@
         </div>
       </section>
       <div class="split">
-        <section class="list"><div id="services"></div></section>
+        <section class="list"><div id="conflicts" class="mut" hidden style="color:var(--warn);margin-bottom:8px"></div><div id="services"></div></section>
         <div id="detail"></div>
       </div>
     </div>
@@ -434,7 +434,7 @@ const ID = {
   'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
   'Proxy to': 'Proxy ke', 'proxy': 'proxy',
   'Other environments on this PC': 'Environment lain di PC ini', 'Scan': 'Pindai', 'Link': 'Tautkan', 'Unlink': 'Lepas tautan', 'linked': 'tertaut',
-  'Other folder': 'Folder lain', 'Browse…': 'Telusuri…', 'Add': 'Tambah', 'Remove': 'Hapus',
+  'Other folder': 'Folder lain', 'Auto-link new versions': 'Tautkan versi baru otomatis', "Show DevPanel's versions in Laragon": 'Tampilkan versi DevPanel di Laragon', 'Use DevPanel DB': 'Pakai DB DevPanel', 'Use DevPanel DB…': 'Pakai DB DevPanel…', 'Link anyway': 'Tetap tautkan', 'Sync': 'Sinkron', 'Browse…': 'Telusuri…', 'Add': 'Tambah', 'Remove': 'Hapus',
   'Nothing found there (folder moved or drive removed?)': 'Tidak ada yang ditemukan (folder dipindah atau drive dilepas?)',
   'Add as projects folder': 'Tambahkan sebagai folder proyek', 'Also serve': 'Sajikan juga', 'Projects': 'Proyek', 'No other environments found': 'Tidak ada environment lain', 'Scanning…': 'Memindai…', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
   'Web & App Servers': 'Web & App Server', 'Cache & Messaging': 'Cache & Antrean', 'Search': 'Pencarian',
@@ -537,6 +537,11 @@ async function renderServices() {
   const [all, runtimes] = await Promise.all([api().Status(), api().Runtimes()]);
   const list = all.filter(s => s.enabled || s.running);
   $('summary').textContent = `${list.filter(s => s.running).length}/${list.length} services running`;
+  const taken = list.filter(s => s.owner);
+  $('conflicts').hidden = !taken.length;
+  $('conflicts').replaceChildren(...taken.map(s => el(`<div>⚠ Port ${s.port} (${esc(s.name)}) is used by <b>${esc(s.owner)}</b>. ` +
+    (s.owner.startsWith('Laravel Herd') ? "Herd serves its own sites there. Its sites can still use DevPanel's databases (Settings → Other environments → Use DevPanel DB). To use DevPanel's web server instead, stop Herd (herd stop, or quit Herd)."
+      : `Stop it there first, or give DevPanel's ${esc(s.name)} another port in Settings → Ports.`) + '</div>')));
   const row = s => {
     if (s.name === 'php' || s.runtime) { // languages have no process of their own: versions, PATH and tools
       const sub = s.name === 'php' ? 'config &amp; extensions' : esc(s.version || 'not installed');
@@ -546,12 +551,13 @@ async function renderServices() {
       p.onclick = () => selectDetail(s.name);
       return p;
     }
-    const r = el(`<div class="row ${s.name === selected ? 'sel' : ''}"><span class="dot ${s.running ? 'on' : ''}"></span>
-      <span class="grow"><div>${esc(s.name)}</div><div class="mut ellipsis">${esc(s.version || 'not installed')}</div></span><button></button></div>`);
+    const r = el(`<div class="row ${s.name === selected ? 'sel' : ''}"><span class="dot ${s.running ? 'on' : ''}" ${s.owner ? 'style="background:var(--warn)"' : ''}></span>
+      <span class="grow"><div>${esc(s.name)}</div><div class="mut ellipsis">${s.owner ? '<span style="color:var(--warn)">port ' + s.port + ': ' + esc(s.owner) + '</span>' : esc(s.version || 'not installed')}</div></span><button></button></div>`);
     const b = r.querySelector('button');
+    if (s.owner) r.title = `Port ${s.port} is used by ${s.owner}. DevPanel does not start a second ${s.name} on it.`;
     b.textContent = s.running ? 'Stop' : 'Start';
     b.className = s.running ? '' : 'primary';
-    b.disabled = busy || !s.version;
+    b.disabled = busy || !s.version || !!s.owner;
     b.onclick = e => { e.stopPropagation(); act((s.running ? 'Stop ' : 'Start ') + s.name, () => s.running ? api().Stop(s.name) : api().Start(s.name)); };
     r.onclick = () => selectDetail(s.name);
     r.dataset.name = s.name;
@@ -889,7 +895,7 @@ function siteDetail(s) {
     <div class="kv" style="margin-bottom:10px">
       <span class="mut">Document root</span><span>${esc(s.root)}</span>
       <span class="mut">Framework</span><span>${esc(s.framework || 'unknown')}</span>
-      <span class="mut">APP_URL</span><span>${s.appUrl ? esc(s.appUrl) : '<span class="mut">no .env</span>'} ${s.urlOk ? '' : '<span style="color:var(--warn)">≠ ' + esc(s.host) + '</span> <button class="fix">Fix APP_URL</button>'}</span>
+      <span class="mut">APP_URL</span><span>${s.appUrl ? esc(s.appUrl) : '<span class="mut">no .env</span>'} ${s.urlOk ? '' : '<span style="color:var(--warn)">≠ ' + esc(s.host) + '</span> <button class="fix">Fix APP_URL</button>'} <button class="usedb" title="Point DB_* in .env at DevPanel's MySQL/PostgreSQL">Use DevPanel DB</button></span>
       ${shared ? `<span class="mut">Public URL</span><span><a href="#" class="pub">${esc(share.url)}</a></span>` : ''}
     </div>
     <div class="inline" style="margin-bottom:8px">
@@ -932,6 +938,7 @@ function siteDetail(s) {
   q('.exp2').onclick = () => api().OpenSite(s.folder, 'explorer').catch(e => log('Explorer: ' + e, true));
   q('.term').onclick = () => api().OpenSite(s.folder, 'terminal').catch(e => log('Terminal: ' + e, true));
   if (q('.fix')) q('.fix').onclick = () => act(`Fix APP_URL ${s.folder}`, () => api().FixAppURL(s.folder));
+  q('.usedb').onclick = () => useDevPanelDB(s.folder);
   if (q('.pub')) q('.pub').onclick = e => { e.preventDefault(); window.runtime.BrowserOpenURL(share.url); };
   if (q('.unshare')) q('.unshare').onclick = () => act('Stop sharing', async () => { await api().StopShare(); share = { host: '', url: '' }; });
   if (q('.share')) q('.share').onclick = async () => {
@@ -1209,19 +1216,31 @@ async function externalHint() {
   await scanExternal();
   $('external').scrollIntoView({ behavior: 'smooth' });
 }
+function useDevPanelDB(project) {
+  if (confirm(`Point DB_* in ${project}'s .env at DevPanel's database?\nThe old values are shown in the log.`)) act(`DevPanel DB for ${project}`, () => api().UseDevPanelDB(project, ''));
+}
 async function scanExternal() {
   $('external').replaceChildren(el('<div class="empty">Scanning…</div>'));
   let envs;
   try { envs = await api().ExternalEnvironments(); } catch (e) { $('external').textContent = String(e); return; }
   if (!envs.length) { $('external').replaceChildren(el('<div class="empty">No other environments found</div>')); return; }
+  const [standalone, shareLaragon] = await Promise.all([api().Standalone(), api().ShareLaragon()]);
   $('external').replaceChildren(...envs.flatMap(e => {
     const head = el(`<div class="cat" style="cursor:default"><span>${esc(e.name)}</span><span class="n">${esc(e.root || '')}</span>${e.custom ? '<button class="ghost rm">Remove</button>' : ''}</div>`);
     const rm = head.querySelector('.rm');
     if (rm) rm.onclick = () => act(`Remove ${e.root}`, () => api().RemoveExternalPath(e.root)).then(scanExternal);
+    const opts = el(`<div class="row"><span class="w-label" style="width:120px">Sync</span><span class="grow">
+      <label title="Versions downloaded later in ${esc(e.name)} are linked within a minute; removed ones are unlinked. Versions DevPanel already has are skipped."><input type="checkbox" class="auto" ${e.auto ? 'checked' : ''}> Auto-link new versions</label>
+      ${e.name === 'Laragon' && standalone ? `<label style="margin-left:14px" title="Folder links named devpanel-… in Laragon's bin, so Laragon's menu lists DevPanel's PHP, MySQL, ... too"><input type="checkbox" class="share" ${shareLaragon ? 'checked' : ''}> Show DevPanel's versions in Laragon</label>` : ''}
+      </span></div>`);
+    opts.querySelector('.auto').onchange = ev => act(`Auto-link ${e.name}`, () => api().SetAutoLink(e.name, ev.target.checked)).then(scanExternal);
+    const sh = opts.querySelector('.share');
+    if (sh) sh.onchange = () => act(`Share with Laragon`, () => api().SetShareLaragon(sh.checked)).then(scanExternal);
     const rows = e.items.map(it => {
       const r = el(`<div class="row"><span class="w-label" style="width:120px">${esc(it.label)}</span>
         <span class="grow ellipsis" title="${esc(it.dir)}">${esc(it.version || '?')} <span class="mut">${esc(it.dir)}</span></span>
-        ${it.linked ? '<span class="badge ok">linked</span><button class="ghost un">Unlink</button>' : '<button class="ln">Link</button>'}</div>`);
+        ${it.linked ? '<span class="badge ok">linked</span><button class="ghost un">Unlink</button>'
+          : it.same ? `<span class="badge" title="The same version is already available">same as ${esc(it.same)}</span><button class="ghost ln">Link anyway</button>` : '<button class="ln">Link</button>'}</div>`);
       const ln = r.querySelector('.ln'), un = r.querySelector('.un');
       if (ln) ln.onclick = () => act(`Link ${e.name} ${it.label}`, () => api().LinkExternal(it.service, it.dir)).then(scanExternal);
       if (un) un.onclick = () => act(`Unlink ${it.linkName}`, () => api().UnlinkExternal(it.service, it.linkName)).then(scanExternal);
@@ -1234,8 +1253,16 @@ async function scanExternal() {
         if (confirm(`Serve the projects in ${e.www} with DevPanel (as *.test sites)?`)) act(`Projects folder + ${e.www}`, () => api().UseExternalWWW(e.name)).then(renderExtraWWW);
       };
       rows.push(w);
+      const db = el(`<div class="row"><span class="w-label" style="width:120px"></span><span class="grow mut">Its projects with DevPanel's MySQL / PostgreSQL</span><button>Use DevPanel DB…</button></div>`);
+      db.querySelector('button').onclick = async () => {
+        const list = await api().ProjectsIn(e.www);
+        if (!list.length) return alert('No projects with a .env in ' + e.www);
+        const n = prompt(`Which project in ${e.www}?\n${list.join(', ')}`, list[0]);
+        if (n) useDevPanelDB(e.www + '\\' + n.trim());
+      };
+      rows.push(db);
     }
-    return [head, ...rows];
+    return [head, ...(e.items.length ? [opts] : []), ...rows];
   }));
 }
 
@@ -1246,7 +1273,14 @@ async function renderPorts() {
     const i = el(`<input type="text" value="${p.port}" style="width:100px">`);
     const b = el(`<button>Apply</button>`);
     b.disabled = busy;
-    b.onclick = () => act(`Port ${p.label} → ${i.value}`, () => api().SetPort(p.key, parseInt(i.value, 10) || 0));
+    b.onclick = () => act(`Port ${p.label} → ${i.value}`, async () => {
+      const v = parseInt(i.value, 10) || 0;
+      try { return await api().SetPort(p.key, v); } catch (e) {
+        const m = String(e);
+        if (!m.includes('linked:') || !confirm(m.slice(m.indexOf('linked:') + 7).trim() + '\n\nChange it anyway?')) throw e;
+        return api().SetPortLinked(p.key, v);
+      }
+    });
     const cell = el(`<span class="inline"></span>`);
     cell.append(b);
     return [el(`<span class="mut">${esc(p.label)}</span>`), i, cell];

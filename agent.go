@@ -224,6 +224,7 @@ func (a *App) runAgent() int {
 	a.runTray()
 	go a.watchSites()
 	go a.watchServices()
+	go a.watchExternal()
 	if launchedMinimized() && a.cfg.StartGroup != "" {
 		go func() { a.trayResult("Start "+a.cfg.StartGroup, a.StartGroup(a.cfg.StartGroup)) }()
 	}

@@ -59,6 +59,9 @@ type Config struct {
 	ExternalPaths []string `json:"externalPaths,omitempty"`
 	// More projects folders served next to WWW (e.g. XAMPP's htdocs, ~/Herd).
 	ExtraWWW []string `json:"extraWww,omitempty"`
+	// AutoLink: environments whose new versions are linked automatically; ShareLaragon: own versions shown in Laragon.
+	AutoLink     []string `json:"autoLink,omitempty"`
+	ShareLaragon bool     `json:"shareLaragon,omitempty"`
 	// ExternalHinted: the first-run "other environments found" hint was shown.
 	ExternalHinted bool   `json:"externalHinted,omitempty"`
 	Terminal       string `json:"terminal,omitempty"` // "cmd" (default) or "cmder"
@@ -119,6 +122,7 @@ type Status struct {
 	Versions []string `json:"versions"`
 	Enabled  bool     `json:"enabled"` // ticked in Manage services
 	Category string   `json:"category"`
+	Owner    string   `json:"owner"` // port held by another program / environment, e.g. "Laravel Herd (nginx.exe)"
 }
 
 func NewApp() *App {
@@ -312,10 +316,20 @@ func (a *App) running(name string) bool {
 func (a *App) Status() []Status {
 	out := []Status{}
 	paths := processPaths()
+	var pids map[int]uint32
 	for _, s := range services {
 		p := port(s.Name)
 		d := a.svcDir(s.Name)
-		out = append(out, Status{s.Name, p, portOpen(p) && a.ownedIn(paths, s.Name), folderName(d), a.versions(s.Name), a.enabled(s.Name), categoryOf(s.Name)})
+		st := Status{s.Name, p, false, folderName(d), a.versions(s.Name), a.enabled(s.Name), categoryOf(s.Name), ""}
+		if portOpen(p) {
+			if st.Running = a.ownedIn(paths, s.Name); !st.Running {
+				if pids == nil {
+					pids = listenPIDs()
+				}
+				st.Owner = a.ownerOf(exePath(pids[p]))
+			}
+		}
+		out = append(out, st)
 	}
 	return out
 }
@@ -326,7 +340,7 @@ func (a *App) start(name string) error {
 		return fmt.Errorf("%s is not installed", name)
 	}
 	if portOpen(port(name)) {
-		return fmt.Errorf("%s: port %d is already in use (web servers share it: stop the other one first)", name, port(name))
+		return fmt.Errorf("%s: port %d is already in use by %s (stop it there first, or change the port)", name, port(name), a.portOwner(port(name)))
 	}
 	var err error
 	switch name {

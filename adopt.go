@@ -83,6 +83,7 @@ type ExternalItem struct {
 	Version  string `json:"version"`
 	LinkName string `json:"linkName"`
 	Linked   bool   `json:"linked"`
+	Same     string `json:"same"` // the same version is already available there (own install or another link)
 }
 
 type ExternalEnv struct {
@@ -91,6 +92,8 @@ type ExternalEnv struct {
 	WWW    string         `json:"www"` // its projects folder, if any
 	Items  []ExternalItem `json:"items"`
 	Custom bool           `json:"custom"` // a folder the user added (ExternalPaths)
+	Tag    string         `json:"tag"`    // link name prefix
+	Auto   bool           `json:"auto"`   // new versions are linked automatically
 }
 
 // markers: which file proves an install, and the version folder relative to it.
@@ -243,7 +246,7 @@ func (a *App) ExternalEnvironments() []ExternalEnv {
 	ownBin := strings.ToLower(filepath.Clean(a.path("bin"))) + `\`
 	out := []ExternalEnv{}
 	for i, s := range sources {
-		env := ExternalEnv{Name: s.name, Items: []ExternalItem{}, Custom: i >= custom}
+		env := ExternalEnv{Name: s.name, Items: []ExternalItem{}, Custom: i >= custom, Tag: s.tag, Auto: slices.Contains(a.cfg.AutoLink, s.name)}
 		if exists(s.www) {
 			env.WWW = s.www
 		}
@@ -256,16 +259,12 @@ func (a *App) ExternalEnvironments() []ExternalEnv {
 			}
 			for svcName, dirs := range scanInstalls(root, s.depth) {
 				for _, d := range dirs {
-					if strings.HasPrefix(strings.ToLower(d)+`\`, ownBin) { // already DevPanel's own (e.g. running inside Laragon)
+					if strings.HasPrefix(strings.ToLower(resolveDir(d))+`\`, ownBin) { // DevPanel's own (inside Laragon, or shared into it)
 						continue
 					}
 					link := linkSafe.ReplaceAllString(strings.ToLower(s.tag+"-"+filepath.Base(d)), "-")
-					ver := ""
-					if v, ok := a.installedVersionAt(svcName, d); ok {
-						ver = verString(v)
-					}
 					linked := exists(filepath.Join(a.path(`bin\`+svcName), link))
-					env.Items = append(env.Items, ExternalItem{svcName, serviceLabel(svcName), d, ver, link, linked})
+					env.Items = append(env.Items, ExternalItem{Service: svcName, Label: serviceLabel(svcName), Dir: d, Version: a.versionOf(svcName, d), LinkName: link, Linked: linked})
 				}
 			}
 		}
@@ -277,6 +276,7 @@ func (a *App) ExternalEnvironments() []ExternalEnv {
 			out = append(out, env)
 		}
 	}
+	a.markSame(out)
 	return out
 }
 

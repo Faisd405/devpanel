@@ -111,7 +111,13 @@ var (
 )
 
 // SetPort changes a port in the service's own config and remembers it. The service must be stopped.
-func (a *App) SetPort(key string, p int) error {
+// For a service linked from another environment it refuses with an error starting "linked:", so the window
+// can ask first and call SetPortLinked (which edits that environment's own config file).
+func (a *App) SetPort(key string, p int) error { return a.setPort(key, p, false) }
+
+func (a *App) SetPortLinked(key string, p int) error { return a.setPort(key, p, true) }
+
+func (a *App) setPort(key string, p int, linkedOK bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var svcName string
@@ -140,8 +146,8 @@ func (a *App) SetPort(key string, p int) error {
 	if portOpen(p) {
 		return fmt.Errorf("port %d is in use by another program", p)
 	}
-	if a.isAdopted(svcName) && svcName != "apache" { // their config file: don't rewrite another environment's settings
-		return fmt.Errorf("%s is linked from %s; change its port there, or install a DevPanel copy", svcName, resolveDir(a.svcDir(svcName)))
+	if a.isAdopted(svcName) && svcName != "apache" && !linkedOK { // their config file: only when the user agreed
+		return fmt.Errorf("linked: %s is linked from %s; the new port is written to its own config there, so that environment uses it too", svcName, resolveDir(a.svcDir(svcName)))
 	}
 	d := a.svcDir(svcName)
 	var err error
@@ -165,9 +171,14 @@ func (a *App) SetPort(key string, p int) error {
 			err = appendLine(f, "port = "+strconv.Itoa(p))
 		}
 	case "mysql":
-		_, err = replaceInFile(filepath.Join(d, "my.ini"), myPortRe, "port="+strconv.Itoa(p))
+		_, err = replaceInFile(findMyIni(d), myPortRe, "port="+strconv.Itoa(p)) // [client] and [mysqld]
 	case "redis":
-		_, err = replaceInFile(filepath.Join(d, "redis.windows.conf"), rdPortRe, "port "+strconv.Itoa(p))
+		for _, c := range []string{"redis.windows.conf", "redis.conf"} { // FlyEnv/others use redis.conf
+			if exists(filepath.Join(d, c)) {
+				_, err = replaceInFile(filepath.Join(d, c), rdPortRe, "port "+strconv.Itoa(p))
+				break
+			}
+		}
 	}
 	// mailpit takes its ports as start flags, nothing to edit.
 	if err != nil {

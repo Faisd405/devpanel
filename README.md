@@ -105,6 +105,22 @@ Notes: PHP settings and extensions changed in DevPanel are written to that PHP's
 other tool sees them too. Ports of linked databases are changed in the other tool. Don't run the other
 tool's control panel and DevPanel on the same services at the same time.
 
+**Staying in sync, no duplicates**
+- A port held by another tool shows who holds it (e.g. *port 80: Laravel Herd (nginx.exe)*); DevPanel doesn't
+  start a second copy on it.
+- A version DevPanel already has is marked *same as …* instead of being linked twice.
+- *Auto-link new versions* per environment: what that tool downloads later is linked within a minute, removed
+  versions are unlinked. *Show DevPanel's versions in Laragon* (standalone) puts `devpanel-*` folder links into
+  Laragon's `bin`, so Laragon's menu lists them too. Herd and FlyEnv manage their own folders, so sharing into
+  them is one-way (FlyEnv can add DevPanel's `bin\<service>` as a custom folder in its own settings).
+- Ports of linked services can be changed after a confirmation; the change is written to that tool's config.
+- **Use DevPanel DB** (site detail, or a Herd/XAMPP project in the environments list) points `DB_*` in `.env` at
+  DevPanel's MySQL/PostgreSQL; the old values are logged.
+
+With Laravel Herd (free): Herd keeps serving its sites with its nginx/PHP (its site features keep working)
+and DevPanel provides MySQL, PostgreSQL, Redis, ... for them. Herd's own *Services* list is a Herd Pro
+feature and is left alone.
+
 The AI tools follow the same rule: `check_requirement` also looks at these environments and suggests
 `link_external` before any install.
 
