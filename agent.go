@@ -239,6 +239,7 @@ func (a *App) runAgent() int {
 	time.Sleep(300 * time.Millisecond)
 	a.stopAllProcesses()
 	a.StopShare()
+	a.StopAdminer()
 	systray.Quit()
 	return 0
 }

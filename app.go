@@ -64,6 +64,8 @@ type Config struct {
 	ShareLaragon bool     `json:"shareLaragon,omitempty"`
 	// WebServer: the one picked last (apache, nginx, caddy, frankenphp); Start All starts only this one.
 	WebServer string `json:"webServer,omitempty"`
+	// WizardDone: the first-run setup wizard was finished or skipped.
+	WizardDone bool `json:"wizardDone,omitempty"`
 	// ExternalHinted: the first-run "other environments found" hint was shown.
 	ExternalHinted bool   `json:"externalHinted,omitempty"`
 	Terminal       string `json:"terminal,omitempty"` // "cmd" (default) or "cmder"

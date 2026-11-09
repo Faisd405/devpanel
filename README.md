@@ -9,7 +9,7 @@ Laragon folder, or standalone and **links what XAMPP, WampServer, Laravel Herd, 
 installed** (PHP versions, MySQL/MariaDB, PostgreSQL, Apache, Nginx, Redis, Node, ...), using their binaries,
 databases and projects as they are. Installer or portable.
 
-> Status: v1.2.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
+> Status: v1.3.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
 > (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 ---
@@ -52,6 +52,12 @@ processes, requirements check, installs, ...). See [MCP](#mcp-for-ai-coding-tool
 **Check** tab: one list of what keeps sites from working (hostnames missing in hosts, untrusted certificate,
 ports held by other programs, wrong `APP_URL`, PHP extensions a project's `composer.json` needs, broken links),
 each with a fix button where DevPanel can fix it.
+
+**First start**: a short setup wizard (what DevPanel uses, link what other tools installed, pick the web server,
+trust HTTPS / add hosts). Run it again from Settings → General.
+
+**Database GUI**: Databases → *Open Adminer* (downloaded once, checksum verified) runs on `127.0.0.1` with the
+current PHP, so it works whatever serves the sites, also next to Herd.
 
 **One web server at a time**: *Use* on another web server stops DevPanel's current one and starts it; Start All
 remembers the choice and skips the web server when another program (e.g. Herd) holds port 80.

@@ -36,6 +36,8 @@ DevPanel does not bundle or redistribute web servers, databases or runtimes. Whe
 downloads them from their official publishers (php.net, Apache Lounge, nginx.org, EnterpriseDB, MySQL,
 nodejs.org, GitHub releases of the respective projects, ...). Each of them stays under its own license
 (PHP License, Apache-2.0, BSD, GPL, SSPL, Elastic License, ...), which applies to how you use it.
+The database GUI, [Adminer](https://www.adminer.org/) by Jakub Vrána (Apache-2.0 or GPL-2.0), is downloaded
+from its GitHub releases the first time you open it; DevPanel adds only a small `index.php` that loads it.
 
 ## Not affiliated
 

@@ -71,6 +71,9 @@
   details summary { cursor:pointer; color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
   details[open] summary { margin-bottom:10px; }
   .empty { color:var(--mut); padding:10px 0; text-align:center; }
+  .subnav { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .subnav button { border-radius:99px; padding:4px 14px; }
+  .subnav button.active { background:var(--acc); border-color:var(--acc); color:#fff; }
   dialog#dlg { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:18px 20px; width:440px; max-width:90vw; box-shadow:0 10px 40px #0008; }
   dialog#dlg::backdrop { background:#0007; }
   #dlg .title { font-weight:600; margin-bottom:8px; }
@@ -78,6 +81,12 @@
   #dlg input, #dlg select { width:100%; box-sizing:border-box; margin-bottom:12px; }
   #dlg .btns { display:flex; justify-content:flex-end; gap:8px; }
   #dlg button.danger { background:var(--err); border-color:var(--err); color:#fff; }
+  dialog.wiz { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:12px; padding:20px 24px; width:560px; max-width:92vw; box-shadow:0 10px 40px #0008; }
+  dialog.wiz::backdrop { background:#0008; }
+  .wiz .title { font-size:17px; font-weight:600; margin:2px 0 10px; }
+  .wiz .body { max-height:52vh; overflow:auto; margin-bottom:16px; }
+  .wiz .body label { display:flex; gap:8px; align-items:flex-start; padding:5px 0; border-top:1px solid var(--line); }
+  .wiz .btns { display:flex; gap:8px; align-items:center; }
   #toasts { position:fixed; right:16px; bottom:110px; display:flex; flex-direction:column; gap:6px; z-index:10; pointer-events:none; }
   #toasts div { background:var(--card2); border:1px solid var(--line); border-left:3px solid var(--ok); border-radius:6px; padding:7px 12px; max-width:380px; font-size:12px; box-shadow:0 4px 16px #0006; }
   #toasts div.err { border-left-color:var(--err); color:var(--fg); }
@@ -200,7 +209,8 @@
           <select id="db-engine" onchange="loadDBs()"><option value="postgresql">PostgreSQL</option><option value="mysql">MySQL</option></select>
           <input type="text" id="db-new" placeholder="new_database" style="width:200px">
           <button class="primary" onclick="createDB()">Create</button>
-          <button style="margin-left:auto" onclick="api().OpenBackupFolder($('db-engine').value)">📁 Backups</button>
+          <button style="margin-left:auto" onclick="openAdminer()" title="Database GUI in the browser (Adminer, local only)">🗄 Open Adminer</button>
+          <button onclick="api().OpenBackupFolder($('db-engine').value)">📁 Backups</button>
           <button onclick="loadDBs()">↻</button>
         </div>
         <div class="mut" style="margin-top:8px">Local server only (127.0.0.1, user postgres / root). Backups go to C:\laragon\backup\&lt;engine&gt;.</div>
@@ -265,17 +275,22 @@
 
     <!-- Settings -->
     <div class="tab" id="tab-settings">
-      <section>
+      <div class="subnav" id="settings-nav">
+        <button data-sg="general">General</button><button data-sg="projects">Projects</button><button data-sg="env">Other environments</button>
+        <button data-sg="network">Ports, hosts &amp; HTTPS</button><button data-sg="backup">Backup</button>
+      </div>
+      <section data-sg="general">
         <h3>Startup &amp; tray</h3>
         <label style="display:block;margin-bottom:8px"><input type="checkbox" id="set-autostart"> Start DevPanel when Windows starts (minimized to tray)</label>
         <div class="inline" style="margin-bottom:8px"><span class="mut">On login, start group</span><select id="set-group"></select></div>
         <label style="display:block;margin-bottom:8px"><input type="checkbox" id="set-autosync"> Auto sync vhosts when folders in www change (every 5 s)</label>
         <label style="display:block;margin-bottom:8px"><input type="checkbox" id="set-watchdog"> Watchdog: restart services that stop unexpectedly (max 3× per 10 min)</label>
         <label style="display:block"><input type="checkbox" id="set-notify"> Windows notifications (installs, crashes, new projects)</label>
+        <div style="margin-top:8px"><button onclick="runWizard()">Run setup wizard again…</button></div>
         <div class="inline" style="margin-top:12px"><button class="primary" onclick="saveSettings()">Save settings</button>
           <span class="mut">Closing the window keeps DevPanel in the tray. Use the tray menu → Quit to exit.</span></div>
       </section>
-      <section>
+      <section data-sg="env">
         <h3>Other environments on this PC</h3>
         <div class="inline" style="margin-bottom:8px">
           <button class="primary" onclick="scanExternal()">Scan</button>
@@ -289,7 +304,7 @@
         </div>
         <div id="external"></div>
       </section>
-      <section>
+      <section data-sg="projects">
         <h3>Projects, mail &amp; terminal</h3>
         <div class="inline" style="margin-bottom:10px">
           <span class="mut" style="width:120px">Projects folder</span>
@@ -316,7 +331,7 @@
           <span class="mut" id="tpl-state"></span>
         </div>
       </section>
-      <section>
+      <section data-sg="general">
         <h3>Appearance &amp; shortcuts</h3>
         <div class="inline">
           <span class="mut">Theme</span>
@@ -327,18 +342,18 @@
           <button onclick="act('Create shortcuts', () => api().CreateShortcuts())">Add to Start Menu &amp; Desktop</button>
         </div>
       </section>
-      <section>
+      <section data-sg="network">
         <h3>Ports</h3>
         <div id="ports" class="kv" style="grid-template-columns:130px 110px 1fr;align-items:center"></div>
         <div class="mut" style="margin-top:8px">Edits the service's own config (httpd.conf, postgresql.conf, my.ini, ...). Stop the service first. Remember DB_PORT in project .env files.</div>
       </section>
-      <section>
+      <section data-sg="network">
         <h3>hosts file</h3>
         <div class="inline"><button onclick="previewHosts()">Find stale entries</button><span class="mut" id="hosts-info">Removes old “#laragon magic!” / “#devpanel” lines that no site uses (backup first, asks for admin). Other lines are never touched.</span></div>
         <pre class="out" id="hosts-preview" hidden></pre>
         <button class="primary" id="hosts-clean" hidden onclick="act('Clean hosts', () => api().CleanHosts()).then(() => $('hosts-clean').hidden = $('hosts-preview').hidden = true)">Remove these lines</button>
       </section>
-      <section>
+      <section data-sg="backup">
         <h3>Backup &amp; move</h3>
         <div class="inline">
           <button onclick="act('Export settings', () => api().ExportConfig())">Export settings…</button>
@@ -346,7 +361,7 @@
           <span class="mut">Install path, selected versions and ports stay as on this machine.</span>
         </div>
       </section>
-      <section>
+      <section data-sg="network">
         <h3>HTTPS certificate</h3>
         <div id="ssl-info" class="kv" style="margin-bottom:10px"></div>
         <div class="inline">
@@ -403,6 +418,8 @@
   <footer><div id="log"></div></footer>
   <dialog id="dlg"><div class="title"></div><div class="text"></div><div class="field"></div>
     <div class="btns"><button class="no">Cancel</button><button class="yes primary">OK</button></div></dialog>
+  <dialog id="wiz" class="wiz"><div class="mut step"></div><div class="title"></div><div class="body"></div>
+    <div class="btns"><button class="skip ghost">Skip setup</button><span class="grow"></span><button class="back">Back</button><button class="next primary">Next</button></div></dialog>
   <div id="toasts"></div>
 
 <script>
@@ -456,10 +473,10 @@ const ID = {
   'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
   'Proxy to': 'Proxy ke', 'proxy': 'proxy',
   'Other environments on this PC': 'Environment lain di PC ini', 'Scan': 'Pindai', 'Link': 'Tautkan', 'Unlink': 'Lepas tautan', 'linked': 'tertaut',
-  'Cancel': 'Batal', 'Rename': 'Ganti nama', 'Next': 'Lanjut', 'Close': 'Tutup', 'Use': 'Pakai', 'Later': 'Nanti', 'Open list': 'Buka daftar',
+  'General': 'Umum', 'Welcome to DevPanel': 'Selamat datang di DevPanel', 'Use what you already have': 'Pakai yang sudah ada', 'Web server': 'Web server', 'Browser': 'Browser', 'Finish': 'Selesai', 'Back': 'Kembali', 'Skip setup': 'Lewati', 'Run setup wizard again…': 'Jalankan wizard pengaturan lagi…', 'Other environments': 'Environment lain', 'Ports, hosts & HTTPS': 'Port, hosts & HTTPS', 'Cancel': 'Batal', 'Rename': 'Ganti nama', 'Next': 'Lanjut', 'Close': 'Tutup', 'Use': 'Pakai', 'Later': 'Nanti', 'Open list': 'Buka daftar',
   'Restore': 'Pulihkan', 'Drop': 'Hapus permanen', 'Import': 'Impor', 'Share': 'Bagikan', 'Update PATH': 'Perbarui PATH', 'Change anyway': 'Tetap ubah',
   'Check': 'Periksa', 'Problems': 'Masalah', 'Check again': 'Periksa ulang', '✓ Everything looks fine': '✓ Semua baik-baik saja', 'Checking…': 'Memeriksa…',
-  'Use Mailpit': 'Pakai Mailpit', 'Use Mailpit…': 'Pakai Mailpit…',
+  '🗄 Open Adminer': '🗄 Buka Adminer', 'Use Mailpit': 'Pakai Mailpit', 'Use Mailpit…': 'Pakai Mailpit…',
   'Other environments found': 'Ditemukan environment lain', 'Add projects folder': 'Tambah folder proyek', 'Import settings?': 'Impor pengaturan?',
   'Update your Windows user PATH?': 'Perbarui PATH Windows Anda?', 'Change the MySQL root password?': 'Ganti password root MySQL?',
   'Restore all databases?': 'Pulihkan semua database?', 'ngrok authtoken': 'Authtoken ngrok', 'Remove link': 'Hapus tautan',
@@ -489,6 +506,7 @@ function translate(root) {
   });
 }
 const translateText = t => (lang === 'id' && ID[t]) || t;
+const L = (en, id) => lang === 'id' ? id : en; // sentences with values, which the ID dictionary can't match
 if (lang === 'id') {
   new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => translate(n.nodeType === 1 ? n : n.parentNode || document.body)))).observe(document.body, { childList: true, subtree: true });
 }
@@ -607,7 +625,7 @@ function grouped(items, rowFn, view, rerender) {
 }
 
 // ---- Services ----
-let selected = 'apache', lastRunning = {}, lastStatus = [];
+let selected = 'apache', lastRunning = {}, lastOwner = {}, lastStatus = [];
 const WEB = ['apache', 'nginx', 'caddy', 'frankenphp']; // share ports 80/443: Start on one switches to it
 
 async function renderServices() {
@@ -647,8 +665,9 @@ async function renderServices() {
   $('services').replaceChildren(...grouped([...list, ...langs], row, 'svc', renderServices));
   // Refresh the open detail when its running state changes (e.g. after Start).
   const cur = list.find(s => s.name === selected);
-  if (cur && lastRunning[selected] !== undefined && lastRunning[selected] !== cur.running) renderDetail();
-  list.forEach(s => lastRunning[s.name] = s.running);
+  // ...or who holds its port (the detail may have rendered before the first status arrived)
+  if (cur && ((lastRunning[selected] !== undefined && lastRunning[selected] !== cur.running) || (lastOwner[selected] ?? '') !== cur.owner)) renderDetail();
+  list.forEach(s => { lastRunning[s.name] = s.running; lastOwner[s.name] = s.owner; });
   const gs = $('gsvcs');
   const key = list.map(s => s.name).join(',');
   if (gs.dataset.key !== key) { // rebuild when the ticked services change, keeping current checks
@@ -703,9 +722,11 @@ async function renderDetail() {
   head.querySelector('.kv').replaceChildren(...(d.info || []).flatMap(([k, v]) => [el(`<span class="mut">${esc(k)}</span>`), el(`<span>${esc(v)}</span>`)]));
   if (!d.version) head.append(el(`<div class="mut">Install it from the Install tab, then pick it in Environment.</div>`));
   const owner = lastStatus.find(s => s.name === d.name)?.owner;
-  if (owner) head.append(el(`<div style="color:var(--warn);margin-top:8px">⚠ Port ${d.port} is used by <b>${esc(owner)}</b>. ` +
-    (owner.startsWith('Laravel Herd') ? "Herd serves its own sites there; they can still use DevPanel's databases (Settings → Other environments → Use DevPanel DB). To use this web server instead, stop Herd (herd stop, or quit Herd)."
-      : `Stop it there first, or give ${esc(d.name)} another port in Settings → Ports.`) + '</div>'));
+  if (owner) head.append(el(`<div style="color:var(--warn);margin-top:8px">⚠ ${L(`Port ${d.port} is used by`, `Port ${d.port} dipakai oleh`)} <b>${esc(owner)}</b>. ` +
+    (owner.startsWith('Laravel Herd')
+      ? L("Herd serves its own sites there; they can still use DevPanel's databases (Settings → Other environments → Use DevPanel DB). To use this web server instead, stop Herd (herd stop, or quit Herd).",
+          'Herd menyajikan situsnya sendiri di sana; situs itu tetap bisa memakai database DevPanel (Pengaturan → Environment lain → Pakai DB DevPanel). Untuk memakai web server ini, hentikan Herd (herd stop, atau tutup Herd).')
+      : L(`Stop it there first, or give ${esc(d.name)} another port in Settings → Ports.`, `Hentikan di sana dulu, atau beri ${esc(d.name)} port lain di Pengaturan → Port.`)) + '</div>'));
   box.append(head);
   box.append(await versionSection(d));
 
@@ -1164,6 +1185,10 @@ async function restoreAll() {
   if (c === null) return;
   act('Restore all', () => api().RestoreAll(file, c)).then(loadDBs);
 }
+// Adminer downloads once (≈0.6 MB, checksum verified) and runs on 127.0.0.1 with the current PHP.
+function openAdminer() {
+  act('Open Adminer', async () => { const u = await api().OpenAdminer($('db-engine').value); window.runtime.BrowserOpenURL(u); return u; });
+}
 async function setMyPw() {
   if (!await ask({ title: 'Change the MySQL root password?', text: 'Projects using root need the new DB_PASSWORD.', ok: 'Change' })) return;
   act('MySQL root password', () => api().SetMySQLPassword($('my-pw').value, $('my-pw2').value)).then(() => { $('my-pw').value = $('my-pw2').value = ''; });
@@ -1280,6 +1305,15 @@ async function addExtraWWW() {
   if (d && await act(`Projects folder + ${d}`, () => api().AddWWW(d))) $('www-extra').value = '';
   renderExtraWWW();
 }
+// ---- Settings sub-pages ----
+function showSettings(g) {
+  localStorage.setItem('settings-page', g);
+  document.querySelectorAll('#settings-nav button').forEach(b => b.classList.toggle('active', b.dataset.sg === g));
+  document.querySelectorAll('#tab-settings section[data-sg]').forEach(s => s.hidden = s.dataset.sg !== g);
+}
+$('settings-nav').onclick = e => { const g = e.target.closest('button')?.dataset.sg; if (g) showSettings(g); };
+showSettings(localStorage.getItem('settings-page') || 'general');
+
 // ---- Check: problems with a fix button ----
 async function renderChecks() {
   let list;
@@ -1308,6 +1342,82 @@ async function addExtPath() {
   if (await act(`Add ${d}`, () => api().AddExternalPath(d))) $('ext-path').value = '';
   scanExternal();
 }
+// ---- First-run wizard: mode → link what exists → web server → browser trust ----
+async function runWizard() {
+  const [root, standalone, envs, status, ssl, sl] = await Promise.all([api().Root(), api().Standalone(), api().ExternalEnvironments(), api().Status(), api().SSL(), api().Sites()]);
+  const d = $('wiz'), q = c => d.querySelector(c);
+  const webs = status.filter(s => WEB.includes(s.name) && s.version);
+  const foreign = status.find(s => WEB.includes(s.name) && s.owner)?.owner;
+  const label = t => `<span>${t}</span>`;
+  const steps = [
+    { title: 'Welcome to DevPanel', html: () => `<p>${standalone
+        ? L(`DevPanel keeps its own services, projects and databases in <b>${esc(root)}</b> (bin, www, data).`,
+            `DevPanel menyimpan service, proyek dan database-nya sendiri di <b>${esc(root)}</b> (bin, www, data).`)
+        : L(`DevPanel works on top of your Laragon folder <b>${esc(root)}</b>: Laragon's PHP, services, projects and databases are used as they are.`,
+            `DevPanel berjalan di atas folder Laragon Anda <b>${esc(root)}</b>: PHP, service, proyek dan database Laragon dipakai apa adanya.`)}</p>
+        <p class="mut">${L('The next steps link what other tools on this PC already installed, pick the web server and make https://*.test trusted. Everything can be changed later.',
+            'Langkah berikutnya menautkan yang sudah dipasang tool lain di PC ini, memilih web server, dan membuat https://*.test dipercaya. Semua bisa diubah nanti.')}</p>` },
+    { title: 'Use what you already have', html: () => {
+        const rows = envs.flatMap(e => [
+          ...e.items.filter(i => !i.linked).map(i => `<label><input type="checkbox" data-link="${esc(i.service)}|${esc(i.dir)}" ${i.same ? '' : 'checked'}>
+            ${label(`<b>${esc(e.name)}</b> ${esc(i.label)} ${esc(i.version || '')}${i.same ? ` <span class="mut">(${L('same as', 'sama dengan')} ${esc(i.same)})</span>` : ''}<div class="mut">${esc(i.dir)}</div>`)}</label>`),
+          ...(e.www ? [`<label><input type="checkbox" data-www="${esc(e.name)}">${label(`<b>${esc(e.name)}</b> ${L('projects in', 'proyek di')} ${esc(e.www)}<div class="mut">${L('served as *.test sites too', 'ikut disajikan sebagai situs *.test')}</div>`)}</label>`] : [])]);
+        return rows.length ? `<p class="mut">${L('Ticked items are linked: nothing is copied or moved, their files are not changed.', 'Yang dicentang akan ditautkan: tidak ada yang disalin atau dipindah, file-nya tidak diubah.')}</p>${rows.join('')}`
+          : `<p class="mut">${L('No other environments (Laragon, XAMPP, WampServer, Herd, FlyEnv) found. You can add a folder later in Settings → Other environments.',
+              'Tidak ada environment lain (Laragon, XAMPP, WampServer, Herd, FlyEnv). Folder bisa ditambahkan nanti di Pengaturan → Environment lain.')}</p>`;
+      } },
+    { title: 'Web server', html: () => (webs.length || foreign ? [
+        ...webs.map((w, i) => `<label><input type="radio" name="wiz-web" value="${w.name}" ${(w.running || (!foreign && i === 0)) ? 'checked' : ''}>${label(`<b>${esc(w.name)}</b> ${esc(w.version)}`)}</label>`),
+        ...(foreign ? [`<label><input type="radio" name="wiz-web" value="" ${webs.some(w => w.running) ? '' : 'checked'}>${label(L(`Keep <b>${esc(foreign)}</b> on port 80<div class="mut">DevPanel still provides databases and services for its sites.</div>`,
+            `Biarkan <b>${esc(foreign)}</b> di port 80<div class="mut">DevPanel tetap menyediakan database dan service untuk situsnya.</div>`))}</label>`] : [])].join('')
+        : `<p class="mut">${L('No web server installed yet. Install Apache or Nginx in Services → ⚙ Manage services.', 'Belum ada web server. Instal Apache atau Nginx di Layanan → ⚙ Kelola layanan.')}</p>`) },
+    { title: 'Browser', html: () => [
+        !ssl.trusted ? `<label><input type="checkbox" data-trust checked>${label(L('Trust the DevPanel certificate<div class="mut">https://*.test without warnings. Windows asks once.</div>',
+            'Percayai sertifikat DevPanel<div class="mut">https://*.test tanpa peringatan. Windows bertanya sekali.</div>'))}</label>` : '',
+        sl.missing ? `<label><input type="checkbox" data-hosts checked>${label(L(`Add ${sl.missing} hostname(s) to the hosts file<div class="mut">Windows asks for admin rights.</div>`,
+            `Tambahkan ${sl.missing} hostname ke file hosts<div class="mut">Windows meminta hak admin.</div>`))}</label>` : '',
+      ].join('') || `<p class="mut">${L('Certificate and hosts file are already fine.', 'Sertifikat dan file hosts sudah beres.')}</p>` },
+  ];
+  const picks = {};
+  const key = x => x.dataset.link || x.dataset.www || (x.name ? 'web:' + x.value : x.hasAttribute('data-trust') ? 'trust' : 'hosts');
+  let i = 0;
+  const show = () => {
+    q('.step').textContent = `${i + 1} / ${steps.length}`;
+    q('.title').textContent = translateText(steps[i].title);
+    q('.body').innerHTML = steps[i].html();
+    q('.body').querySelectorAll('input').forEach(x => { if (key(x) in picks) x.checked = picks[key(x)]; });
+    translate(q('.body'));
+    q('.back').hidden = i === 0;
+    q('.next').textContent = translateText(i === steps.length - 1 ? 'Finish' : 'Next');
+  };
+  const remember = () => q('.body').querySelectorAll('input').forEach(x => picks[key(x)] = x.checked);
+  q('.back').onclick = () => { remember(); i--; show(); };
+  q('.skip').onclick = () => { d.close(); api().FinishWizard(); };
+  q('.next').onclick = async () => {
+    remember();
+    if (i < steps.length - 1) { i++; return show(); }
+    d.close();
+    await api().FinishWizard();
+    act('Setup', async () => {
+      const done = [];
+      for (const [k, on] of Object.entries(picks)) {
+        if (!on) continue;
+        try {
+          if (k.includes('|')) { const [svc, dir] = k.split('|'); await api().LinkExternal(svc, dir); done.push('linked ' + svc); }
+          else if (k.startsWith('web:') && k.length > 4) { await api().SetWebServer(k.slice(4)); done.push('web server ' + k.slice(4)); }
+          else if (k === 'trust') { await api().TrustCA(); done.push('certificate trusted'); }
+          else if (k === 'hosts') { await api().SyncVhosts(); done.push('hosts updated'); }
+          else if (envs.some(e => e.name === k)) { await api().UseExternalWWW(k); done.push('projects of ' + k); }
+        } catch (e) { log(`Setup ${k}: ${e}`, true); }
+      }
+      return done.join(', ') || 'nothing to do';
+    });
+  };
+  show();
+  d.showModal();
+  q('.next').focus();
+}
+
 // First start: offer the installs other environments already have.
 async function externalHint() {
   const envs = await api().ExternalHint();
@@ -1315,6 +1425,7 @@ async function externalHint() {
   const list = envs.map(e => `• ${e.name}: ` + [...new Set(e.items.map(i => i.label))].join(', ')).join('\n');
   if (!await ask({ title: 'Other environments found', text: `${list}\n\nDevPanel can use them as they are (nothing is moved). Open the list to link them?`, ok: 'Open list', cancel: 'Later' })) return;
   document.querySelector('nav button[data-tab="settings"]').click();
+  showSettings('env');
   await scanExternal();
   $('external').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1446,7 +1557,7 @@ window.addEventListener('load', async () => {
   const types = await api().PackageTypes();
   $('np-type').replaceChildren(new Option('Auto (from name)', ''), ...types.map(t => new Option(t, t)));
   await renderAll();
-  externalHint();
+  if (await api().WizardPending()) runWizard(); else externalHint();
   renderChecks();
   setInterval(() => { if (!busy) renderChecks(); }, 60000);
   window.runtime.EventsOn('progress', (name, done, total) => {

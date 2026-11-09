@@ -11,7 +11,7 @@ import (
 )
 
 // Extra ports that aren't a service's main port.
-var defaultPorts = map[string]int{"apache_ssl": 443, "nginx_ssl": 443, "caddy_ssl": 443, "frankenphp_ssl": 443, "mailpit_smtp": 1025, "php_fastcgi": 9100}
+var defaultPorts = map[string]int{"apache_ssl": 443, "nginx_ssl": 443, "caddy_ssl": 443, "frankenphp_ssl": 443, "mailpit_smtp": 1025, "php_fastcgi": 9100, "adminer": 8306}
 
 // portTwins: web servers are alternatives on the same ports (only one runs at a time), so sharing is fine.
 func portTwins(a, b string) bool {
@@ -74,6 +74,7 @@ var portKeys = []struct{ Key, Label, Service string }{
 	{"mailpit_smtp", "Mailpit SMTP", "mailpit"},
 	{"memcached", "Memcached", "memcached"},
 	{"mongodb", "MongoDB", "mongodb"},
+	{"adminer", "Adminer (database GUI)", "adminer"},
 }
 
 type PortInfo struct {

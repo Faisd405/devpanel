@@ -482,3 +482,17 @@ func envValue(env, key string) string {
 }
 
 func (a *App) ShareLaragon() bool { return a.cfg.ShareLaragon }
+
+// ---- First-run wizard ----
+
+func (a *App) Root() string { return a.cfg.Root }
+
+// WizardPending: never finished, and not an install that already saw the 1.1 environments hint.
+func (a *App) WizardPending() bool { return !a.cfg.WizardDone && !a.cfg.ExternalHinted }
+
+func (a *App) FinishWizard() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cfg.WizardDone, a.cfg.ExternalHinted = true, true
+	return a.saveConfig()
+}
