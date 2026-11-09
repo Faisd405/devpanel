@@ -9,7 +9,7 @@ Laragon folder, or standalone and **links what XAMPP, WampServer, Laravel Herd, 
 installed** (PHP versions, MySQL/MariaDB, PostgreSQL, Apache, Nginx, Redis, Node, ...), using their binaries,
 databases and projects as they are. Installer or portable.
 
-> Status: v1.0.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
+> Status: v1.2.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
 > (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 ---
