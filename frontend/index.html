@@ -71,6 +71,16 @@
   details summary { cursor:pointer; color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
   details[open] summary { margin-bottom:10px; }
   .empty { color:var(--mut); padding:10px 0; text-align:center; }
+  dialog#dlg { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:18px 20px; width:440px; max-width:90vw; box-shadow:0 10px 40px #0008; }
+  dialog#dlg::backdrop { background:#0007; }
+  #dlg .title { font-weight:600; margin-bottom:8px; }
+  #dlg .text { white-space:pre-line; color:var(--mut); margin-bottom:12px; word-break:break-word; }
+  #dlg input, #dlg select { width:100%; box-sizing:border-box; margin-bottom:12px; }
+  #dlg .btns { display:flex; justify-content:flex-end; gap:8px; }
+  #dlg button.danger { background:var(--err); border-color:var(--err); color:#fff; }
+  #toasts { position:fixed; right:16px; bottom:110px; display:flex; flex-direction:column; gap:6px; z-index:10; pointer-events:none; }
+  #toasts div { background:var(--card2); border:1px solid var(--line); border-left:3px solid var(--ok); border-radius:6px; padding:7px 12px; max-width:380px; font-size:12px; box-shadow:0 4px 16px #0006; }
+  #toasts div.err { border-left-color:var(--err); color:var(--fg); }
   footer { border-top:1px solid var(--line); padding:6px 20px; }
   #log { font:12px Consolas, monospace; white-space:pre-wrap; height:76px; overflow:auto; color:var(--mut); }
 </style>
@@ -85,6 +95,7 @@
     <button data-tab="db">Databases</button>
     <button data-tab="procs">Processes</button>
     <button data-tab="install">Install</button>
+    <button data-tab="check">Check <span id="check-n" class="badge" hidden></span></button>
     <button data-tab="settings">Settings</button>
   </nav>
 
@@ -244,6 +255,14 @@
       <section id="proc-log-box" hidden><h3 id="proc-log-title"></h3><pre class="out" id="proc-log" style="margin:0;max-height:300px"></pre></section>
     </div>
 
+    <!-- Check -->
+    <div class="tab" id="tab-check">
+      <section>
+        <div class="inline" style="margin-bottom:8px"><h3 style="margin:0" class="grow">Problems</h3><button onclick="renderChecks()">Check again</button></div>
+        <div id="checks"><div class="empty">Checking…</div></div>
+      </section>
+    </div>
+
     <!-- Settings -->
     <div class="tab" id="tab-settings">
       <section>
@@ -323,7 +342,7 @@
         <h3>Backup &amp; move</h3>
         <div class="inline">
           <button onclick="act('Export settings', () => api().ExportConfig())">Export settings…</button>
-          <button onclick="if (confirm('Import settings? Groups, naming rules, hostnames, site options, packages, sources and processes are replaced (a backup of the current settings is saved).')) act('Import settings', () => api().ImportConfig())">Import settings…</button>
+          <button onclick="ask({ title: 'Import settings?', text: 'Groups, naming rules, hostnames, site options, packages, sources and processes are replaced (a backup of the current settings is saved).', ok: 'Import' }).then(y => y && act('Import settings', () => api().ImportConfig()))">Import settings…</button>
           <span class="mut">Install path, selected versions and ports stay as on this machine.</span>
         </div>
       </section>
@@ -382,6 +401,9 @@
   </main>
 
   <footer><div id="log"></div></footer>
+  <dialog id="dlg"><div class="title"></div><div class="text"></div><div class="field"></div>
+    <div class="btns"><button class="no">Cancel</button><button class="yes primary">OK</button></div></dialog>
+  <div id="toasts"></div>
 
 <script>
 // ---- Language: translate visible UI text (static and rendered later). Backend messages stay English.
@@ -434,6 +456,13 @@ const ID = {
   'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
   'Proxy to': 'Proxy ke', 'proxy': 'proxy',
   'Other environments on this PC': 'Environment lain di PC ini', 'Scan': 'Pindai', 'Link': 'Tautkan', 'Unlink': 'Lepas tautan', 'linked': 'tertaut',
+  'Cancel': 'Batal', 'Rename': 'Ganti nama', 'Next': 'Lanjut', 'Close': 'Tutup', 'Use': 'Pakai', 'Later': 'Nanti', 'Open list': 'Buka daftar',
+  'Restore': 'Pulihkan', 'Drop': 'Hapus permanen', 'Import': 'Impor', 'Share': 'Bagikan', 'Update PATH': 'Perbarui PATH', 'Change anyway': 'Tetap ubah',
+  'Check': 'Periksa', 'Problems': 'Masalah', 'Check again': 'Periksa ulang', '✓ Everything looks fine': '✓ Semua baik-baik saja', 'Checking…': 'Memeriksa…',
+  'Use Mailpit': 'Pakai Mailpit', 'Use Mailpit…': 'Pakai Mailpit…',
+  'Other environments found': 'Ditemukan environment lain', 'Add projects folder': 'Tambah folder proyek', 'Import settings?': 'Impor pengaturan?',
+  'Update your Windows user PATH?': 'Perbarui PATH Windows Anda?', 'Change the MySQL root password?': 'Ganti password root MySQL?',
+  'Restore all databases?': 'Pulihkan semua database?', 'ngrok authtoken': 'Authtoken ngrok', 'Remove link': 'Hapus tautan',
   'Other folder': 'Folder lain', 'Auto-link new versions': 'Tautkan versi baru otomatis', "Show DevPanel's versions in Laragon": 'Tampilkan versi DevPanel di Laragon', 'Use DevPanel DB': 'Pakai DB DevPanel', 'Use DevPanel DB…': 'Pakai DB DevPanel…', 'Link anyway': 'Tetap tautkan', 'Sync': 'Sinkron', 'Browse…': 'Telusuri…', 'Add': 'Tambah', 'Remove': 'Hapus',
   'Nothing found there (folder moved or drive removed?)': 'Tidak ada yang ditemukan (folder dipindah atau drive dilepas?)',
   'Add as projects folder': 'Tambahkan sebagai folder proyek', 'Also serve': 'Sajikan juga', 'Projects': 'Proyek', 'No other environments found': 'Tidak ada environment lain', 'Scanning…': 'Memindai…', 'Show version': 'Lihat versi', 'On PATH': 'Di PATH', 'Used by': 'Dipakai oleh',
@@ -459,6 +488,7 @@ function translate(root) {
     for (const a of ['placeholder', 'title']) { const v = el.getAttribute(a); if (v && ID[v]) el.setAttribute(a, ID[v]); }
   });
 }
+const translateText = t => (lang === 'id' && ID[t]) || t;
 if (lang === 'id') {
   new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => translate(n.nodeType === 1 ? n : n.parentNode || document.body)))).observe(document.body, { childList: true, subtree: true });
 }
@@ -480,6 +510,50 @@ function log(msg, err) {
   $('log').prepend(d);
 }
 
+// ask: in-app dialog instead of the browser's confirm/prompt.
+//   ask({title, text, ok, danger})                       -> true / false
+//   ask({..., input: {value, placeholder, expect}})      -> text / null  (expect: OK stays off until typed exactly)
+//   ask({..., options: ['a', 'b'] or [{value, label}]})  -> chosen value / null
+function ask(o) {
+  const d = $('dlg'), q = c => d.querySelector(c);
+  q('.title').textContent = translateText(o.title || 'DevPanel');
+  q('.text').textContent = translateText(o.text || '');
+  q('.text').hidden = !o.text;
+  const yes = q('.yes'), no = q('.no');
+  yes.textContent = translateText(o.ok || 'OK');
+  no.textContent = translateText(o.cancel || 'Cancel');
+  yes.className = 'yes ' + (o.danger ? 'danger' : 'primary');
+  let field = null;
+  if (o.options) {
+    field = document.createElement('select');
+    field.replaceChildren(...o.options.map(x => typeof x === 'string' ? new Option(x, x) : new Option(x.label, x.value)));
+  } else if (o.input) {
+    field = document.createElement('input');
+    field.type = 'text';
+    field.value = o.input.value || '';
+    field.placeholder = o.input.placeholder || o.input.expect || '';
+    if (o.input.expect) field.oninput = () => yes.disabled = field.value.trim() !== o.input.expect;
+  }
+  q('.field').replaceChildren(...(field ? [field] : []));
+  yes.disabled = !!o.input?.expect;
+  return new Promise(res => {
+    const done = v => { d.close(); res(v); };
+    yes.onclick = () => done(field ? field.value.trim() : true);
+    no.onclick = () => done(field ? null : false);
+    d.oncancel = e => { e.preventDefault(); done(field ? null : false); };
+    if (field) field.onkeydown = e => { if (e.key === 'Enter' && !yes.disabled) yes.click(); };
+    d.showModal();
+    (field || yes).focus();
+  });
+}
+function toast(msg, err) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  if (err) t.className = 'err';
+  $('toasts').append(t);
+  setTimeout(() => t.remove(), err ? 8000 : 4000);
+}
+
 // Runs a backend call with action buttons disabled, then re-renders everything.
 async function act(label, fn) {
   if (busy) return;
@@ -490,9 +564,11 @@ async function act(label, fn) {
   try {
     const r = await fn();
     log(label + ': ' + (r || 'ok'));
+    toast(label + (r ? ': ' + r : ' ✓'));
   } catch (e) {
     ok = false;
     log(label + ': ' + e, true);
+    toast(label + ': ' + e, true);
   }
   busy = false;
   await renderAll();
@@ -500,7 +576,7 @@ async function act(label, fn) {
 }
 
 $('tabs').addEventListener('click', e => {
-  const t = e.target.dataset.tab;
+  const t = e.target.closest('button')?.dataset.tab;
   if (!t) return;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   document.querySelectorAll('.tab').forEach(d => d.classList.toggle('active', d.id === 'tab-' + t));
@@ -532,6 +608,7 @@ function grouped(items, rowFn, view, rerender) {
 
 // ---- Services ----
 let selected = 'apache', lastRunning = {}, lastStatus = [];
+const WEB = ['apache', 'nginx', 'caddy', 'frankenphp']; // share ports 80/443: Start on one switches to it
 
 async function renderServices() {
   const [all, runtimes] = await Promise.all([api().Status(), api().Runtimes()]);
@@ -554,7 +631,14 @@ async function renderServices() {
     b.textContent = s.running ? 'Stop' : 'Start';
     b.className = s.running ? '' : 'primary';
     b.disabled = busy || !s.version || !!s.owner;
-    b.onclick = e => { e.stopPropagation(); act((s.running ? 'Stop ' : 'Start ') + s.name, () => s.running ? api().Stop(s.name) : api().Start(s.name)); };
+    const otherWeb = WEB.includes(s.name) && !s.running && all.find(o => WEB.includes(o.name) && o.running);
+    if (otherWeb) { b.textContent = 'Use'; b.title = `Stops ${otherWeb.name} and starts ${s.name} (they share port ${s.port})`; }
+    b.onclick = e => {
+      e.stopPropagation();
+      if (s.running) act('Stop ' + s.name, () => api().Stop(s.name));
+      else if (WEB.includes(s.name)) act('Web server → ' + s.name, () => api().SetWebServer(s.name)); // one at a time
+      else act('Start ' + s.name, () => api().Start(s.name));
+    };
     r.onclick = () => selectDetail(s.name);
     r.dataset.name = s.name;
     return r;
@@ -814,19 +898,17 @@ async function renderEnv() {
     if (removable.length) {
       const rm = el(`<button class="ghost" title="Uninstall an unused version">🗑</button>`);
       rm.disabled = busy;
-      rm.onclick = () => {
-        const v = prompt(`Uninstall which ${t.label} version? This deletes its folder in bin\\${t.name}.\nData folders (databases) are kept.\n\nType one of:\n${removable.join('\n')}`);
-        if (!v) return;
-        if (!removable.includes(v.trim())) return log(`Uninstall: "${v}" is not a removable ${t.label} version`, true);
-        act(`Uninstall ${t.label} ${v.trim()}`, () => api().UninstallVersion(t.name, v.trim(), v.trim()));
+      rm.onclick = async () => {
+        const v = await ask({ title: `Uninstall a ${t.label} version`, text: `This deletes its folder in bin\\${t.name}. Data folders (databases) are kept.`, options: removable, ok: 'Uninstall', danger: true });
+        if (v) act(`Uninstall ${t.label} ${v}`, () => api().UninstallVersion(t.name, v, v));
       };
       r.append(rm);
     }
     return r;
   }, 'env', renderEnv));
 }
-function applyPath() {
-  if (!confirm('Update your Windows user PATH with the selected versions?\nOnly C:\\laragon\\bin\\<tool> entries are replaced; a backup is saved next to devpanel.exe.')) return;
+async function applyPath() {
+  if (!await ask({ title: 'Update your Windows user PATH?', text: 'Only C:\\laragon\\bin\\<tool> entries are replaced with the selected versions; a backup is saved next to devpanel.exe.', ok: 'Update PATH' })) return;
   act('Apply to Windows PATH', () => api().ApplyUserPath());
 }
 
@@ -865,13 +947,14 @@ let openSite = '', share = { host: '', url: '' }, phpVersions = { list: [], curr
 
 function renderSites() {
   const q = $('filter').value.toLowerCase();
-  const list = sites.filter(s => !q || s.folder.toLowerCase().includes(q) || s.host.includes(q) || (s.framework || '').toLowerCase().includes(q));
+  const list = sites.filter(s => !q || s.folder.toLowerCase().includes(q) || s.host.includes(q) || (s.framework || '').toLowerCase().includes(q) || (s.source || '').toLowerCase().includes(q));
   $('sites').replaceChildren(...(list.length ? list.flatMap(s => {
     const custom = s.host !== s.default;
     const shared = share.host === s.host && share.url;
     const r = el(`<div class="row"><button class="ghost exp" title="Details" style="color:var(--fg)">${openSite === s.folder ? '▾' : '▸'}</button>
       <span class="folder mut ellipsis" title="${esc(s.root)}">${esc(s.folder)}</span>
       <input type="text" class="grow" value="${esc(s.host)}" placeholder="${esc(s.default)}">
+      ${s.source ? `<span class="badge src" title="${esc(s.root)}">${esc(s.source)}</span>` : ''}
       ${s.framework ? `<span class="badge">${esc(s.framework)}</span>` : ''}
       ${custom ? '<span class="badge">custom</span>' : ''}
       ${s.urlOk ? '' : '<span class="badge" style="color:var(--warn)" title="APP_URL in .env points elsewhere">APP_URL</span>'}
@@ -895,7 +978,7 @@ function siteDetail(s) {
     <div class="kv" style="margin-bottom:10px">
       <span class="mut">Document root</span><span>${esc(s.root)}</span>
       <span class="mut">Framework</span><span>${esc(s.framework || 'unknown')}</span>
-      <span class="mut">APP_URL</span><span>${s.appUrl ? esc(s.appUrl) : '<span class="mut">no .env</span>'} ${s.urlOk ? '' : '<span style="color:var(--warn)">≠ ' + esc(s.host) + '</span> <button class="fix">Fix APP_URL</button>'} <button class="usedb" title="Point DB_* in .env at DevPanel's MySQL/PostgreSQL">Use DevPanel DB</button></span>
+      <span class="mut">APP_URL</span><span>${s.appUrl ? esc(s.appUrl) : '<span class="mut">no .env</span>'} ${s.urlOk ? '' : '<span style="color:var(--warn)">≠ ' + esc(s.host) + '</span> <button class="fix">Fix APP_URL</button>'} <button class="usedb" title="Point DB_* in .env at DevPanel's MySQL/PostgreSQL">Use DevPanel DB</button> <button class="usemail" title="Point MAIL_* in .env at DevPanel's Mailpit">Use Mailpit</button></span>
       ${shared ? `<span class="mut">Public URL</span><span><a href="#" class="pub">${esc(share.url)}</a></span>` : ''}
     </div>
     <div class="inline" style="margin-bottom:8px">
@@ -926,12 +1009,12 @@ function siteDetail(s) {
   const ps = q('.php');
   ps.replaceChildren(new Option('default (' + (phpVersions.current || '?') + ')', ''), ...phpVersions.list.map(v => { const o = new Option(v, v); o.selected = v === s.php; return o; }));
   ps.onchange = () => act(`PHP for ${s.folder} → ${ps.value || 'default'}`, () => api().SetSitePHP(s.folder, ps.value));
-  q('.ren').onclick = () => {
-    const n = prompt(`Rename folder ${s.folder} to:`, s.folder);
-    if (n && n !== s.folder) act(`Rename ${s.folder} → ${n}`, () => api().RenameProject(s.folder, n.trim())).then(() => openSite = n.trim());
+  q('.ren').onclick = async () => {
+    const n = await ask({ title: `Rename ${s.folder}`, text: 'New folder name (letters, digits, - and _). Database names and .env are not changed.', input: { value: s.folder }, ok: 'Rename' });
+    if (n && n !== s.folder) act(`Rename ${s.folder} → ${n}`, () => api().RenameProject(s.folder, n)).then(() => openSite = n);
   };
-  q('.del').onclick = () => {
-    const c = prompt(`Move ${s.folder} to the Recycle Bin?\nIts database is kept. Type the folder name to confirm:`);
+  q('.del').onclick = async () => {
+    const c = await ask({ title: `Move ${s.folder} to the Recycle Bin?`, text: 'Its database is kept. Type the folder name to confirm.', input: { expect: s.folder }, ok: 'Delete', danger: true });
     if (c !== null) act(`Delete ${s.folder}`, () => api().DeleteProject(s.folder, c));
   };
   q('.code').onclick = () => api().OpenSite(s.folder, 'code').catch(e => log('VS Code: ' + e, true));
@@ -939,15 +1022,16 @@ function siteDetail(s) {
   q('.term').onclick = () => api().OpenSite(s.folder, 'terminal').catch(e => log('Terminal: ' + e, true));
   if (q('.fix')) q('.fix').onclick = () => act(`Fix APP_URL ${s.folder}`, () => api().FixAppURL(s.folder));
   q('.usedb').onclick = () => useDevPanelDB(s.folder);
+  q('.usemail').onclick = () => useMailpit(s.folder);
   if (q('.pub')) q('.pub').onclick = e => { e.preventDefault(); window.runtime.BrowserOpenURL(share.url); };
   if (q('.unshare')) q('.unshare').onclick = () => act('Stop sharing', async () => { await api().StopShare(); share = { host: '', url: '' }; });
   if (q('.share')) q('.share').onclick = async () => {
     if (!(await api().NgrokReady())) {
-      const tok = prompt('ngrok needs an authtoken (free account at dashboard.ngrok.com → Your Authtoken).\nPaste it here:');
+      const tok = await ask({ title: 'ngrok authtoken', text: 'ngrok needs an authtoken (free account at dashboard.ngrok.com → Your Authtoken). Paste it here:', input: {}, ok: 'Save' });
       if (!tok) return;
       if (!(await act('Save ngrok token', () => api().SetNgrokToken(tok)))) return;
     }
-    if (!confirm(`Make ${s.host} reachable from the internet through ngrok?\nAnyone with the URL can open it until you stop sharing.`)) return;
+    if (!await ask({ title: `Share ${s.host}?`, text: 'It becomes reachable from the internet through ngrok. Anyone with the URL can open it until you stop sharing.', ok: 'Share' })) return;
     act('Share ' + s.host, async () => { share = await api().ShareSite(s.folder); return share.url; });
   };
   if (busy) d.querySelectorAll('button').forEach(b => b.disabled = true);
@@ -1076,12 +1160,12 @@ async function refreshPackages() {
 async function restoreAll() {
   const file = await api().PickSQLFile('postgresql');
   if (!file) return;
-  const c = prompt(`Replay ${file}\ninto the running PostgreSQL (all databases + roles)?\nType RESTORE ALL to confirm:`);
+  const c = await ask({ title: 'Restore all databases?', text: `Replay ${file} into the running PostgreSQL (all databases + roles). Type RESTORE ALL to confirm.`, input: { expect: 'RESTORE ALL' }, ok: 'Restore', danger: true });
   if (c === null) return;
   act('Restore all', () => api().RestoreAll(file, c)).then(loadDBs);
 }
-function setMyPw() {
-  if (!confirm('Change the MySQL root password? Projects using root need the new DB_PASSWORD.')) return;
+async function setMyPw() {
+  if (!await ask({ title: 'Change the MySQL root password?', text: 'Projects using root need the new DB_PASSWORD.', ok: 'Change' })) return;
   act('MySQL root password', () => api().SetMySQLPassword($('my-pw').value, $('my-pw2').value)).then(() => { $('my-pw').value = $('my-pw2').value = ''; });
 }
 async function loadDBs() {
@@ -1098,12 +1182,12 @@ async function loadDBs() {
     r.querySelector('.r').onclick = async () => {
       const file = await api().PickSQLFile(engine);
       if (!file) return;
-      const c = prompt(`Restore ${file}\ninto "${name}"? Existing tables may be overwritten.\nType the database name to confirm:`);
+      const c = await ask({ title: `Restore into ${name}?`, text: `${file}\nExisting tables may be overwritten. Type the database name to confirm.`, input: { expect: name }, ok: 'Restore', danger: true });
       if (c === null) return;
       act(`Restore into ${name}`, () => api().RestoreDatabase(engine, name, file, c));
     };
-    r.querySelector('.ghost').onclick = () => {
-      const c = prompt(`DROP "${name}" permanently? This cannot be undone.\nTip: Backup first.\nType the database name to confirm:`);
+    r.querySelector('.ghost').onclick = async () => {
+      const c = await ask({ title: `Drop ${name} permanently?`, text: 'This cannot be undone. Tip: Backup first. Type the database name to confirm.', input: { expect: name }, ok: 'Drop', danger: true });
       if (c === null) return;
       act(`Drop ${name}`, () => api().DropDatabase(engine, name, c)).then(loadDBs);
     };
@@ -1134,7 +1218,7 @@ async function renderProcs() {
     ss.onclick = () => act((p.running ? 'Stop ' : 'Start ') + p.name, () => p.running ? api().StopProcess(p.name) : api().StartProcess(p.name)).then(() => { procLogName = p.name; showProcLog(); });
     r.querySelector('.lg').onclick = () => { procLogName = p.name; showProcLog(); };
     r.querySelector('.ed').onclick = () => { $('pr-name').value = p.name; $('pr-dir').value = p.dir; $('pr-cmd').value = p.cmd; $('pr-auto').checked = p.autostart; };
-    r.querySelector('.ghost').onclick = () => { if (confirm(`Delete process "${p.name}"? It will be stopped.`)) act('Delete ' + p.name, () => api().DeleteProcess(p.name)); };
+    r.querySelector('.ghost').onclick = async () => { if (await ask({ title: `Delete process ${p.name}?`, text: 'It will be stopped.', ok: 'Delete', danger: true })) act('Delete ' + p.name, () => api().DeleteProcess(p.name)); };
     if (busy) r.querySelectorAll('button').forEach(b => b.disabled = true);
     return r;
   }) : [el(`<div class="empty">No processes. Add e.g. a queue worker or Vite dev server below.</div>`)]));
@@ -1196,6 +1280,24 @@ async function addExtraWWW() {
   if (d && await act(`Projects folder + ${d}`, () => api().AddWWW(d))) $('www-extra').value = '';
   renderExtraWWW();
 }
+// ---- Check: problems with a fix button ----
+async function renderChecks() {
+  let list;
+  try { list = await api().Checks(); } catch (e) { $('checks').textContent = String(e); return; }
+  const n = list.filter(c => c.level !== 'info').length;
+  $('check-n').hidden = !n;
+  $('check-n').textContent = n;
+  if (!list.length) return $('checks').replaceChildren(el('<div class="empty">✓ Everything looks fine</div>'));
+  const icon = { error: '⛔', warn: '⚠', info: 'ℹ' };
+  const order = { error: 0, warn: 1, info: 2 };
+  $('checks').replaceChildren(...list.sort((x, y) => order[x.level] - order[y.level]).map(c => {
+    const r = el(`<div class="row"><span style="width:22px">${icon[c.level] || ''}</span>
+      <span class="grow"><div>${esc(c.title)}</div><div class="mut">${esc(c.detail)}</div></span>${c.fix ? `<button class="primary">${esc(c.fix)}</button>` : ''}</div>`);
+    const b = r.querySelector('button');
+    if (b) { b.disabled = busy; b.onclick = () => act(c.fix, () => api().FixCheck(c.action, c.args || [])).then(renderChecks); }
+    return r;
+  }));
+}
 async function pickExtPath() {
   const d = await api().PickFolder('Folder of XAMPP, Laragon, WampServer, Herd, FlyEnv, or a PHP / database install');
   if (d) { $('ext-path').value = d; addExtPath(); }
@@ -1211,13 +1313,30 @@ async function externalHint() {
   const envs = await api().ExternalHint();
   if (!envs?.length) return;
   const list = envs.map(e => `• ${e.name}: ` + [...new Set(e.items.map(i => i.label))].join(', ')).join('\n');
-  if (!confirm(`Found on this PC:\n${list}\n\nDevPanel can use them as they are (nothing is moved). Open the list to link them?`)) return;
+  if (!await ask({ title: 'Other environments found', text: `${list}\n\nDevPanel can use them as they are (nothing is moved). Open the list to link them?`, ok: 'Open list', cancel: 'Later' })) return;
   document.querySelector('nav button[data-tab="settings"]').click();
   await scanExternal();
   $('external').scrollIntoView({ behavior: 'smooth' });
 }
-function useDevPanelDB(project) {
-  if (confirm(`Point DB_* in ${project}'s .env at DevPanel's database?\nThe old values are shown in the log.`)) act(`DevPanel DB for ${project}`, () => api().UseDevPanelDB(project, ''));
+async function useMailpit(project, choices) {
+  if (choices) {
+    const n = await ask({ title: 'Use Mailpit', text: `Which project in ${project}?`, options: choices, ok: 'Next' });
+    if (!n) return;
+    project += '\\' + n;
+  }
+  if (await ask({ title: 'Use Mailpit', text: `MAIL_* in ${project}'s .env will point at DevPanel's Mailpit, so mail is caught locally. The old values are shown in the log.`, ok: 'Apply' }))
+    act(`Mailpit for ${project}`, () => api().UseDevPanelMail(project));
+}
+async function useDevPanelDB(project, choices) {
+  // choices: project names to pick from (another environment's projects folder), else project is the site
+  if (choices) {
+    const n = await ask({ title: 'Use DevPanel DB', text: `Which project in ${project}?`, options: choices, ok: 'Next' });
+    if (!n) return;
+    project += '\\' + n;
+  }
+  const engine = await ask({ title: 'Use DevPanel DB', text: `DB_* in ${project}'s .env will point at DevPanel's database. The old values are shown in the log.`,
+    options: [{ value: '', label: 'Automatic (keep the project’s choice, else the running one)' }, { value: 'mysql', label: 'MySQL / MariaDB' }, { value: 'pgsql', label: 'PostgreSQL' }], ok: 'Apply' });
+  if (engine !== null) act(`DevPanel DB for ${project}`, () => api().UseDevPanelDB(project, engine));
 }
 async function scanExternal() {
   $('external').replaceChildren(el('<div class="empty">Scanning…</div>'));
@@ -1249,16 +1368,20 @@ async function scanExternal() {
     if (e.custom && !e.items.length && !e.www) rows.push(el('<div class="empty">Nothing found there (folder moved or drive removed?)</div>'));
     if (e.www) {
       const w = el(`<div class="row"><span class="w-label" style="width:120px">Projects</span><span class="grow ellipsis mut">${esc(e.www)}</span><button>Add as projects folder</button></div>`);
-      w.querySelector('button').onclick = () => {
-        if (confirm(`Serve the projects in ${e.www} with DevPanel (as *.test sites)?`)) act(`Projects folder + ${e.www}`, () => api().UseExternalWWW(e.name)).then(renderExtraWWW);
+      w.querySelector('button').onclick = async () => {
+        if (await ask({ title: 'Add projects folder', text: `Serve the projects in ${e.www} with DevPanel too (as *.test sites)?`, ok: 'Add' })) act(`Projects folder + ${e.www}`, () => api().UseExternalWWW(e.name)).then(renderExtraWWW);
       };
       rows.push(w);
-      const db = el(`<div class="row"><span class="w-label" style="width:120px"></span><span class="grow mut">Its projects with DevPanel's MySQL / PostgreSQL</span><button>Use DevPanel DB…</button></div>`);
-      db.querySelector('button').onclick = async () => {
+      const db = el(`<div class="row"><span class="w-label" style="width:120px"></span><span class="grow mut">Its projects with DevPanel's database or Mailpit</span><button class="db">Use DevPanel DB…</button><button class="ml">Use Mailpit…</button></div>`);
+      db.querySelector('.ml').onclick = async () => {
         const list = await api().ProjectsIn(e.www);
-        if (!list.length) return alert('No projects with a .env in ' + e.www);
-        const n = prompt(`Which project in ${e.www}?\n${list.join(', ')}`, list[0]);
-        if (n) useDevPanelDB(e.www + '\\' + n.trim());
+        if (!list.length) return ask({ title: 'Use Mailpit', text: 'No projects with a .env in ' + e.www, cancel: 'Close' });
+        useMailpit(e.www, list);
+      };
+      db.querySelector('.db').onclick = async () => {
+        const list = await api().ProjectsIn(e.www);
+        if (!list.length) return ask({ title: 'Use DevPanel DB', text: 'No projects with a .env in ' + e.www, cancel: 'Close' });
+        useDevPanelDB(e.www, list);
       };
       rows.push(db);
     }
@@ -1277,7 +1400,7 @@ async function renderPorts() {
       const v = parseInt(i.value, 10) || 0;
       try { return await api().SetPort(p.key, v); } catch (e) {
         const m = String(e);
-        if (!m.includes('linked:') || !confirm(m.slice(m.indexOf('linked:') + 7).trim() + '\n\nChange it anyway?')) throw e;
+        if (!m.includes('linked:') || !await ask({ title: `Change the port of a linked ${p.label}?`, text: m.slice(m.indexOf('linked:') + 7).trim(), ok: 'Change anyway' })) throw e;
         return api().SetPortLinked(p.key, v);
       }
     });
@@ -1324,6 +1447,8 @@ window.addEventListener('load', async () => {
   $('np-type').replaceChildren(new Option('Auto (from name)', ''), ...types.map(t => new Option(t, t)));
   await renderAll();
   externalHint();
+  renderChecks();
+  setInterval(() => { if (!busy) renderChecks(); }, 60000);
   window.runtime.EventsOn('progress', (name, done, total) => {
     const row = document.querySelector(`[data-pkg="${CSS.escape(name)}"]`);
     const p = (row && row.querySelector('progress')) || document.querySelector('#manage-list progress:not([hidden])');
@@ -1340,7 +1465,7 @@ window.addEventListener('load', async () => {
   });
   window.runtime.EventsOn('log', (msg, isErr) => { log(msg, isErr); renderServices(); });
   window.runtime.EventsOn('quickapp', line => { const p = $('qa-log'); p.hidden = false; p.textContent += line + '\n'; p.scrollTop = p.scrollHeight; });
-  $('tabs').addEventListener('click', e => { if (e.target.dataset.tab === 'db') loadDBs(); });
+  $('tabs').addEventListener('click', e => { const t = e.target.closest('button')?.dataset.tab; if (t === 'db') loadDBs(); if (t === 'check') renderChecks(); });
 });
 </script>
 </body>

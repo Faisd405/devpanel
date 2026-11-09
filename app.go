@@ -62,6 +62,8 @@ type Config struct {
 	// AutoLink: environments whose new versions are linked automatically; ShareLaragon: own versions shown in Laragon.
 	AutoLink     []string `json:"autoLink,omitempty"`
 	ShareLaragon bool     `json:"shareLaragon,omitempty"`
+	// WebServer: the one picked last (apache, nginx, caddy, frankenphp); Start All starts only this one.
+	WebServer string `json:"webServer,omitempty"`
 	// ExternalHinted: the first-run "other environments found" hint was shown.
 	ExternalHinted bool   `json:"externalHinted,omitempty"`
 	Terminal       string `json:"terminal,omitempty"` // "cmd" (default) or "cmder"
@@ -591,6 +593,7 @@ type Site struct {
 	Default string   `json:"default"` // hostname without a custom override
 	Root    string   `json:"root"`
 	RootRel string   `json:"rootRel"` // custom document root relative to the folder, "" = auto (public/ if present)
+	Source  string   `json:"source"`  // projects folder it comes from when not the main www, e.g. "htdocs", "Herd"
 	Aliases []string `json:"aliases"`
 	PHP     string   `json:"php"`   // pinned PHP version, "" = default
 	Proxy   string   `json:"proxy"` // reverse proxy target, "" = serve files/PHP
@@ -681,6 +684,9 @@ func (a *App) sites() ([]Site, error) {
 	for _, e := range entries {
 		n := e.name
 		s := Site{Folder: n, Default: a.defaultHost(n), Root: filepath.Join(e.www, n)}
+		if e.www != a.www() {
+			s.Source = filepath.Base(e.www)
+		}
 		s.Host = s.Default
 		if h := a.cfg.Hostnames[n]; h != "" {
 			s.Host = h

@@ -415,6 +415,19 @@ func (a *App) UseDevPanelDB(project, engine string) (string, error) {
 	if envValue(env, "REDIS_HOST") != "" {
 		vals = append(vals, [2]string{"REDIS_HOST", "127.0.0.1"}, [2]string{"REDIS_PORT", strconv.Itoa(port("redis"))})
 	}
+	msg, err := writeEnvVals(f, env, vals)
+	if err != nil {
+		return "", err
+	}
+	msg = fmt.Sprintf("%s now uses DevPanel's %s (database %s)%s", filepath.Base(dir), svcName, db, msg)
+	if !a.running(svcName) {
+		msg += "; start " + svcName + " and create the database if needed"
+	}
+	return msg + " (php artisan config:clear if config is cached)", nil
+}
+
+// writeEnvVals sets the values in .env content and writes it; returns "; previous: ..." for what changed.
+func writeEnvVals(f, env string, vals [][2]string) (string, error) {
 	var old []string
 	for _, kv := range vals {
 		if v := envValue(env, kv[0]); v != kv[1] {
@@ -425,14 +438,36 @@ func (a *App) UseDevPanelDB(project, engine string) (string, error) {
 	if err := os.WriteFile(f, []byte(env), 0644); err != nil {
 		return "", err
 	}
-	msg := fmt.Sprintf("%s now uses DevPanel's %s (database %s)", filepath.Base(dir), svcName, db)
-	if len(old) > 0 {
-		msg += "; previous: " + strings.Join(old, " ")
+	if len(old) == 0 {
+		return "", nil
 	}
-	if !a.running(svcName) {
-		msg += "; start " + svcName + " and create the database if needed"
+	return "; previous: " + strings.Join(old, " "), nil
+}
+
+// UseDevPanelMail sends a project's mail to DevPanel's Mailpit (MAIL_* in .env).
+func (a *App) UseDevPanelMail(project string) (string, error) {
+	dir, err := a.projectDir(project)
+	if err != nil {
+		return "", err
 	}
-	return msg + " (php artisan config:clear if config is cached)", nil
+	f := filepath.Join(dir, ".env")
+	b, err := os.ReadFile(f)
+	if err != nil {
+		return "", errors.New("project has no .env")
+	}
+	if a.svcDir("mailpit") == "" {
+		return "", errors.New("Mailpit is not installed in DevPanel (Services → Manage services)")
+	}
+	msg, err := writeEnvVals(f, string(b), [][2]string{{"MAIL_MAILER", "smtp"}, {"MAIL_HOST", "127.0.0.1"},
+		{"MAIL_PORT", strconv.Itoa(port("mailpit_smtp"))}, {"MAIL_USERNAME", "null"}, {"MAIL_PASSWORD", "null"}, {"MAIL_ENCRYPTION", "null"}})
+	if err != nil {
+		return "", err
+	}
+	msg = fmt.Sprintf("%s sends mail to Mailpit (http://127.0.0.1:%d)%s", filepath.Base(dir), port("mailpit"), msg)
+	if !a.running("mailpit") {
+		msg += "; start Mailpit"
+	}
+	return msg, nil
 }
 
 // envValue reads an active KEY=value from .env content (quotes removed).

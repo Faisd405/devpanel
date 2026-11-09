@@ -22,6 +22,62 @@ var webServers = []string{"apache", "nginx", "caddy", "frankenphp"}
 
 func isWebServer(name string) bool { return slices.Contains(webServers, name) }
 
+// preferredWeb: the running one, else the last one picked with SetWebServer, else the first ticked.
+func (a *App) preferredWeb() string {
+	first := ""
+	for _, w := range webServers {
+		if a.svcDir(w) == "" {
+			continue
+		}
+		if a.running(w) {
+			return w
+		}
+		if first == "" && a.enabled(w) {
+			first = w
+		}
+	}
+	if a.cfg.WebServer != "" && a.svcDir(a.cfg.WebServer) != "" {
+		return a.cfg.WebServer
+	}
+	return first
+}
+
+// SetWebServer switches the web server: DevPanel's other web servers stop, this one starts and is remembered
+// for Start All. A port held by another program (e.g. Herd's nginx) is reported, never taken over.
+func (a *App) SetWebServer(name string) (string, error) {
+	if !isWebServer(name) {
+		return "", fmt.Errorf("%s is not a web server", name)
+	}
+	if a.svcDir(name) == "" {
+		return "", fmt.Errorf("%s is not installed", serviceLabel(name))
+	}
+	var stopped []string
+	for _, w := range webServers {
+		if w != name && a.running(w) {
+			if err := a.Stop(w); err != nil {
+				return "", err
+			}
+			stopped = append(stopped, serviceLabel(w))
+		}
+	}
+	a.mu.Lock()
+	a.cfg.WebServer = name
+	err := a.saveConfig()
+	a.mu.Unlock()
+	if err != nil {
+		return "", err
+	}
+	a.SetServiceEnabled(name, true)
+	if err := a.Start(name); err != nil {
+		return "", err
+	}
+	msg := serviceLabel(name) + " is the web server"
+	if len(stopped) > 0 {
+		msg += " (stopped " + strings.Join(stopped, ", ") + ")"
+	}
+	return msg, nil
+}
+
 // startTimeout: JVM/Erlang services need longer than the 20 s default to open their port.
 func startTimeout(name string) time.Duration {
 	switch name {

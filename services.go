@@ -190,17 +190,20 @@ func (a *App) InstallService(name string) (string, error) {
 func (a *App) StartAll() (string, error) {
 	var errs []error
 	var notes []string
-	web := "" // only the first ticked web server: they share ports 80/443
+	web := a.preferredWeb() // only one web server: they share ports 80/443
+	if web != "" && !a.running(web) && portOpen(port(web)) && !a.ownPortHolder(processPaths(), web, port(web)) {
+		notes = append(notes, fmt.Sprintf("%s skipped: port %d is used by %s", serviceLabel(web), port(web), a.portOwner(port(web))))
+		web = ""
+	}
 	for _, s := range services {
 		if !a.enabled(s.Name) || a.svcDir(s.Name) == "" {
 			continue
 		}
-		if isWebServer(s.Name) {
+		if isWebServer(s.Name) && s.Name != web {
 			if web != "" {
-				notes = append(notes, fmt.Sprintf("%s skipped (%s uses the same port; untick one)", serviceLabel(s.Name), serviceLabel(web)))
-				continue
+				notes = append(notes, fmt.Sprintf("%s skipped (%s uses the same port; Use on %s switches)", serviceLabel(s.Name), serviceLabel(web), serviceLabel(s.Name)))
 			}
-			web = s.Name
+			continue
 		}
 		if err := a.Start(s.Name); err != nil {
 			errs = append(errs, err)

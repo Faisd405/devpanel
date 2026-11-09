@@ -49,6 +49,13 @@ for PHP/Node with SHA-256 verification, `.zip`/`.tar.xz`/`.7z` (via Windows' own
 **AI (MCP)**: `devpanel.exe mcp` exposes 34 tools (status, start/stop, sites, PHP per site, databases,
 processes, requirements check, installs, ...). See [MCP](#mcp-for-ai-coding-tools).
 
+**Check** tab: one list of what keeps sites from working (hostnames missing in hosts, untrusted certificate,
+ports held by other programs, wrong `APP_URL`, PHP extensions a project's `composer.json` needs, broken links),
+each with a fix button where DevPanel can fix it.
+
+**One web server at a time**: *Use* on another web server stops DevPanel's current one and starts it; Start All
+remembers the choice and skips the web server when another program (e.g. Herd) holds port 80.
+
 Also: tray icon, start with Windows, CLI, export/import settings, light/dark theme, English / Bahasa Indonesia UI.
 
 ---

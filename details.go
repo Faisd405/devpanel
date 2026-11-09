@@ -379,9 +379,16 @@ func (a *App) PHPExtensions() ([]PHPExt, error) {
 
 // SetPHPExtension toggles an extension in the selected PHP's php.ini and restarts Apache if running.
 func (a *App) SetPHPExtension(name string, on bool) error {
+	return a.setPHPExtIn(a.svcDir("php"), name, on)
+}
+
+// setPHPExtIn: the same for any installed PHP folder (e.g. a site's pinned version).
+func (a *App) setPHPExtIn(dir, name string, on bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	dir := a.svcDir("php")
+	if strings.ContainsAny(name, `\/.`) {
+		return fmt.Errorf("invalid extension name %q", name)
+	}
 	if _, err := os.Stat(filepath.Join(dir, `ext\php_`+name+`.dll`)); err != nil {
 		return fmt.Errorf("extension %q not found in %s\\ext", name, filepath.Base(dir))
 	}
