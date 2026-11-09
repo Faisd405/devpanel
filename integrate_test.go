@@ -162,3 +162,17 @@ func TestSetPortLinked(t *testing.T) {
 		t.Fatalf("my.ini:\n%s", b)
 	}
 }
+
+// Apache and Nginx share port 80: DevPanel's own Apache holding it is not "another program" for Nginx.
+func TestOwnPortHolder(t *testing.T) {
+	a, root := standaloneApp(t)
+	touch(t, filepath.Join(root, `bin\apache\httpd-2.4\bin\httpd.exe`))
+	touch(t, filepath.Join(root, `bin\nginx\nginx-1.28\nginx.exe`))
+	paths := []string{strings.ToLower(filepath.Join(root, `bin\apache\httpd-2.4\bin\httpd.exe`))}
+	if !a.ownPortHolder(paths, "nginx", port("nginx")) {
+		t.Fatal("own Apache on 80 reported as a foreign owner for nginx")
+	}
+	if a.ownPortHolder([]string{`c:\program files\herd\nginx.exe`}, "apache", port("apache")) {
+		t.Fatal("Herd's nginx taken for an own service")
+	}
+}

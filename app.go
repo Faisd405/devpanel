@@ -322,7 +322,7 @@ func (a *App) Status() []Status {
 		d := a.svcDir(s.Name)
 		st := Status{s.Name, p, false, folderName(d), a.versions(s.Name), a.enabled(s.Name), categoryOf(s.Name), ""}
 		if portOpen(p) {
-			if st.Running = a.ownedIn(paths, s.Name); !st.Running {
+			if st.Running = a.ownedIn(paths, s.Name); !st.Running && !a.ownPortHolder(paths, s.Name, p) {
 				if pids == nil {
 					pids = listenPIDs()
 				}

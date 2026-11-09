@@ -84,6 +84,16 @@ func (a *App) ownerOf(exe string) string {
 	return filepath.Base(exe)
 }
 
+// ownPortHolder: another of DevPanel's own services holds the port (Apache vs Nginx on 80): not a foreign owner.
+func (a *App) ownPortHolder(paths []string, name string, p int) bool {
+	for _, s := range services {
+		if s.Name != name && port(s.Name) == p && a.ownedIn(paths, s.Name) {
+			return true
+		}
+	}
+	return false
+}
+
 // portOwner: who listens on a port DevPanel's own service doesn't hold ("" = free).
 func (a *App) portOwner(p int) string {
 	pid, ok := listenPIDs()[p]

@@ -104,7 +104,7 @@
         </div>
       </section>
       <div class="split">
-        <section class="list"><div id="conflicts" class="mut" hidden style="color:var(--warn);margin-bottom:8px"></div><div id="services"></div></section>
+        <section class="list"><div id="services"></div></section>
         <div id="detail"></div>
       </div>
     </div>
@@ -531,17 +531,13 @@ function grouped(items, rowFn, view, rerender) {
 }
 
 // ---- Services ----
-let selected = 'apache', lastRunning = {};
+let selected = 'apache', lastRunning = {}, lastStatus = [];
 
 async function renderServices() {
   const [all, runtimes] = await Promise.all([api().Status(), api().Runtimes()]);
   const list = all.filter(s => s.enabled || s.running);
   $('summary').textContent = `${list.filter(s => s.running).length}/${list.length} services running`;
-  const taken = list.filter(s => s.owner);
-  $('conflicts').hidden = !taken.length;
-  $('conflicts').replaceChildren(...taken.map(s => el(`<div>⚠ Port ${s.port} (${esc(s.name)}) is used by <b>${esc(s.owner)}</b>. ` +
-    (s.owner.startsWith('Laravel Herd') ? "Herd serves its own sites there. Its sites can still use DevPanel's databases (Settings → Other environments → Use DevPanel DB). To use DevPanel's web server instead, stop Herd (herd stop, or quit Herd)."
-      : `Stop it there first, or give DevPanel's ${esc(s.name)} another port in Settings → Ports.`) + '</div>')));
+  lastStatus = all;
   const row = s => {
     if (s.name === 'php' || s.runtime) { // languages have no process of their own: versions, PATH and tools
       const sub = s.name === 'php' ? 'config &amp; extensions' : esc(s.version || 'not installed');
@@ -622,6 +618,10 @@ async function renderDetail() {
     <div class="kv"></div></section>`);
   head.querySelector('.kv').replaceChildren(...(d.info || []).flatMap(([k, v]) => [el(`<span class="mut">${esc(k)}</span>`), el(`<span>${esc(v)}</span>`)]));
   if (!d.version) head.append(el(`<div class="mut">Install it from the Install tab, then pick it in Environment.</div>`));
+  const owner = lastStatus.find(s => s.name === d.name)?.owner;
+  if (owner) head.append(el(`<div style="color:var(--warn);margin-top:8px">⚠ Port ${d.port} is used by <b>${esc(owner)}</b>. ` +
+    (owner.startsWith('Laravel Herd') ? "Herd serves its own sites there; they can still use DevPanel's databases (Settings → Other environments → Use DevPanel DB). To use this web server instead, stop Herd (herd stop, or quit Herd)."
+      : `Stop it there first, or give ${esc(d.name)} another port in Settings → Ports.`) + '</div>'));
   box.append(head);
   box.append(await versionSection(d));
 
