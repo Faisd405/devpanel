@@ -66,6 +66,8 @@ type Config struct {
 	WebServer string `json:"webServer,omitempty"`
 	// WizardDone: the first-run setup wizard was finished or skipped.
 	WizardDone bool `json:"wizardDone,omitempty"`
+	// Backups: scheduled database dumps.
+	Backups []BackupJob `json:"backups,omitempty"`
 	// ExternalHinted: the first-run "other environments found" hint was shown.
 	ExternalHinted bool   `json:"externalHinted,omitempty"`
 	Terminal       string `json:"terminal,omitempty"` // "cmd" (default) or "cmder"

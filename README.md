@@ -9,7 +9,7 @@ Laragon folder, or standalone and **links what XAMPP, WampServer, Laravel Herd, 
 installed** (PHP versions, MySQL/MariaDB, PostgreSQL, Apache, Nginx, Redis, Node, ...), using their binaries,
 databases and projects as they are. Installer or portable.
 
-> Status: v1.3.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
+> Status: v1.4.0, early. Tested on Windows 11. Not affiliated with Laragon, Laravel Herd or FlyEnv
 > (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 ---
@@ -46,7 +46,7 @@ dump/restore all for PostgreSQL major upgrades.
 **Install**: Laragon's `packages.conf` when present, built-in catalog, extra sources, update check
 for PHP/Node with SHA-256 verification, `.zip`/`.tar.xz`/`.7z` (via Windows' own `tar.exe`).
 
-**AI (MCP)**: `devpanel.exe mcp` exposes 34 tools (status, start/stop, sites, PHP per site, databases,
+**AI (MCP)**: `devpanel.exe mcp` exposes 35 tools (status, start/stop, sites, PHP per site, databases,
 processes, requirements check, installs, ...). See [MCP](#mcp-for-ai-coding-tools).
 
 **Check** tab: one list of what keeps sites from working (hostnames missing in hosts, untrusted certificate,
@@ -55,6 +55,15 @@ each with a fix button where DevPanel can fix it.
 
 **First start**: a short setup wizard (what DevPanel uses, link what other tools installed, pick the web server,
 trust HTTPS / add hosts). Run it again from Settings → General.
+
+**Clone from Git** (Sites → Quick App → *From Git*, or the `clone_project` MCP tool): clones into `www`, picks an
+installed PHP that fits `composer.json`, runs `composer install` / `npm ci`, creates `.env` from `.env.example`,
+generates `APP_KEY`, creates the database and sets `APP_URL`. Nothing is installed without asking and migrations
+are not run.
+
+**Scheduled backups**: per database hourly / daily / weekly, the newest 7 kept (`<db>_auto_<time>.sql` in
+`backup\<engine>`; backups made by hand are never deleted). Failed or late backups show up in Check. They run
+while DevPanel and the database are running.
 
 **Database GUI**: Databases → *Open Adminer* (downloaded once, checksum verified) runs on `127.0.0.1` with the
 current PHP, so it works whatever serves the sites, also next to Herd.

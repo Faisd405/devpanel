@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-const Version = "1.3.0"
+const Version = "1.4.0"
 
 func (a *App) Version() string { return Version }
 

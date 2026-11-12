@@ -188,7 +188,11 @@ func (a *App) BackupDatabase(engine, name string) (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	file := filepath.Join(dir, name+"_"+time.Now().Format("20060102-150405")+".sql")
+	return a.backupTo(engine, name, filepath.Join(dir, name+"_"+time.Now().Format("20060102-150405")+".sql"))
+}
+
+// backupTo dumps one database into file (removed again if the dump fails).
+func (a *App) backupTo(engine, name, file string) (string, error) {
 	var err error
 	switch engine {
 	case "postgresql":

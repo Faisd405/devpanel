@@ -56,6 +56,7 @@ func (a *App) Checks() []Check {
 		}
 		out = append(out, a.extChecks(s)...)
 	}
+	out = append(out, a.backupChecks(time.Now())...)
 	for _, svcDir := range globDirs(a.path("bin")) {
 		for _, f := range globDirs(svcDir) {
 			if _, err := os.Stat(f); err != nil && isLink(f) {

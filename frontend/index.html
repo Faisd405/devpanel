@@ -188,11 +188,12 @@
           <summary>Quick App · new project</summary>
           <div class="inline">
             <select id="qa-kind" onchange="qaKindChanged()">
-              <option value="laravel">Laravel</option><option value="wordpress">WordPress</option><option value="symfony">Symfony</option>
+              <option value="git">From Git (clone)</option><option value="laravel">Laravel</option><option value="wordpress">WordPress</option><option value="symfony">Symfony</option>
               <option value="codeigniter">CodeIgniter 4</option><option value="cakephp">CakePHP</option><option value="drupal">Drupal</option>
               <option value="blank">Blank PHP</option></select>
+            <input type="text" id="qa-repo" placeholder="https://github.com/org/repo.git" style="width:300px" hidden>
             <input type="text" id="qa-name" placeholder="folder name, e.g. my-shop" style="width:220px">
-            <select id="qa-db"><option value="pgsql">PostgreSQL database</option><option value="mysql">MySQL database</option><option value="sqlite">SQLite (no server)</option></select>
+            <select id="qa-db"><option value="" hidden>As in .env.example</option><option value="pgsql">PostgreSQL database</option><option value="mysql">MySQL database</option><option value="sqlite">SQLite (no server)</option></select>
             <button class="primary" onclick="createApp()">Create</button>
           </div>
           <div class="mut" style="margin-top:6px" id="qa-hint"></div>
@@ -473,7 +474,7 @@ const ID = {
   'Uninstall an unused version': 'Hapus versi yang tidak dipakai',
   'Proxy to': 'Proxy ke', 'proxy': 'proxy',
   'Other environments on this PC': 'Environment lain di PC ini', 'Scan': 'Pindai', 'Link': 'Tautkan', 'Unlink': 'Lepas tautan', 'linked': 'tertaut',
-  'General': 'Umum', 'Welcome to DevPanel': 'Selamat datang di DevPanel', 'Use what you already have': 'Pakai yang sudah ada', 'Web server': 'Web server', 'Browser': 'Browser', 'Finish': 'Selesai', 'Back': 'Kembali', 'Skip setup': 'Lewati', 'Run setup wizard again…': 'Jalankan wizard pengaturan lagi…', 'Other environments': 'Environment lain', 'Ports, hosts & HTTPS': 'Port, hosts & HTTPS', 'Cancel': 'Batal', 'Rename': 'Ganti nama', 'Next': 'Lanjut', 'Close': 'Tutup', 'Use': 'Pakai', 'Later': 'Nanti', 'Open list': 'Buka daftar',
+  'From Git (clone)': 'Dari Git (clone)', 'Auto backup: off': 'Backup otomatis: mati', 'Hourly': 'Tiap jam', 'Daily': 'Harian', 'Weekly': 'Mingguan', 'As in .env.example': 'Sesuai .env.example', 'General': 'Umum', 'Welcome to DevPanel': 'Selamat datang di DevPanel', 'Use what you already have': 'Pakai yang sudah ada', 'Web server': 'Web server', 'Browser': 'Browser', 'Finish': 'Selesai', 'Back': 'Kembali', 'Skip setup': 'Lewati', 'Run setup wizard again…': 'Jalankan wizard pengaturan lagi…', 'Other environments': 'Environment lain', 'Ports, hosts & HTTPS': 'Port, hosts & HTTPS', 'Cancel': 'Batal', 'Rename': 'Ganti nama', 'Next': 'Lanjut', 'Close': 'Tutup', 'Use': 'Pakai', 'Later': 'Nanti', 'Open list': 'Buka daftar',
   'Restore': 'Pulihkan', 'Drop': 'Hapus permanen', 'Import': 'Impor', 'Share': 'Bagikan', 'Update PATH': 'Perbarui PATH', 'Change anyway': 'Tetap ubah',
   'Check': 'Periksa', 'Problems': 'Masalah', 'Check again': 'Periksa ulang', '✓ Everything looks fine': '✓ Semua baik-baik saja', 'Checking…': 'Memeriksa…',
   '🗄 Open Adminer': '🗄 Buka Adminer', 'Use Mailpit': 'Pakai Mailpit', 'Use Mailpit…': 'Pakai Mailpit…',
@@ -1061,6 +1062,7 @@ function siteDetail(s) {
 
 // ---- Quick App ----
 const qaHints = {
+  git: 'git clone into www, then: PHP version from composer.json (an installed one that fits), composer install, npm install, .env from .env.example, APP_KEY, database and APP_URL. Nothing is installed without asking; migrations are not run.',
   laravel: 'composer create-project, creates the database (service must be running), fills APP_URL and DB_* in .env. Migrations are not run.',
   wordpress: 'Downloads the latest WordPress, creates a MySQL database and writes wp-config.php with fresh salts. Finish in the browser.',
   symfony: 'composer create-project symfony/skeleton. The database is created; set DATABASE_URL yourself.',
@@ -1073,12 +1075,21 @@ function qaKindChanged() {
   const k = $('qa-kind').value;
   $('qa-db').disabled = k === 'blank';
   if (k === 'wordpress') $('qa-db').value = 'mysql';
+  $('qa-repo').hidden = k !== 'git';
+  $('qa-name').placeholder = k === 'git' ? 'folder (empty = repo name)' : 'folder name, e.g. my-shop';
+  $('qa-db').options[0].hidden = k !== 'git';
+  if (k === 'git') $('qa-db').value = ''; else if (!$('qa-db').value) $('qa-db').value = 'pgsql';
   $('qa-hint').textContent = qaHints[k];
 }
 async function createApp() {
   const kind = $('qa-kind').value, name = $('qa-name').value.trim(), db = $('qa-db').value;
   $('qa-log').hidden = false;
   $('qa-log').textContent = '';
+  if (kind === 'git') {
+    const repo = $('qa-repo').value.trim();
+    if (await act(`Clone ${repo}`, () => api().CloneProject(repo, name, db))) $('qa-repo').value = $('qa-name').value = '';
+    return;
+  }
   const ok = await act(`Create ${kind} app ${name}`, () => api().CreateApp(kind, name, kind === 'laravel' ? db : 'sqlite'));
   if (ok) $('qa-name').value = '';
 }
@@ -1200,9 +1211,17 @@ async function loadDBs() {
   $('db-error').textContent = '';
   let list = [];
   try { list = await api().Databases(engine); } catch (e) { $('db-error').textContent = String(e); }
+  const jobs = await api().BackupJobs();
   $('dbs').replaceChildren(...(list.length ? list.map(name => {
     const r = el(`<div class="row"><span class="grow">${esc(name)}</span>
+      <select class="auto" title="Scheduled backup (keeps the newest 7; backups made by hand are never deleted)">
+        <option value="">Auto backup: off</option><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select>
       <button class="b">Backup</button><button class="r">Restore…</button><button class="ghost" title="Drop database">✕ Drop</button></div>`);
+    const job = jobs.find(j => j.engine === engine && j.db === name), au = r.querySelector('.auto');
+    au.value = job ? job.every : '';
+    if (job?.last && !job.last.startsWith('0001')) au.title += ' · Last: ' + new Date(job.last).toLocaleString();
+    if (job?.error) { au.style.borderColor = 'var(--err)'; au.title += ' · Last run failed: ' + job.error; }
+    au.onchange = () => act(`Auto backup ${name}: ${au.value || 'off'}`, () => api().SetBackupJob(engine, name, au.value, 7)).then(loadDBs);
     r.querySelector('.b').onclick = () => act(`Backup ${name}`, () => api().BackupDatabase(engine, name));
     r.querySelector('.r').onclick = async () => {
       const file = await api().PickSQLFile(engine);
